@@ -1,4 +1,4 @@
-﻿import * as XLSX from "xlsx";
+import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import {
   ParsedColumn,
@@ -8,19 +8,46 @@ import {
 } from "@/types";
 
 const FIELD_SYNONYMS: Record<VocabFieldKey, string[]> = {
-  word: ["word", "vocabulary", "từ vựng", "từ", "term", "english", "tiếng anh", "headword"],
-  part_of_speech: ["part of speech", "pos", "loại từ", "word type", "category"],
+  word: ["word", "vocabulary", "vocab", "từ vựng", "từ", "term", "english", "tiếng anh", "headword"],
+  part_of_speech: ["part of speech", "pos", "type", "loại từ", "word type", "category"],
   ipa: ["ipa", "pronunciation", "phiên âm", "phonetic", "transcription"],
-  definition_en: ["definition", "english meaning", "meaning", "definition en", "định nghĩa", "english definition"],
-  meaning_vi: ["vietnamese meaning", "translation", "nghĩa tiếng việt", "nghĩa", "meaning vi", "dịch nghĩa"],
+  definition_en: [
+    "eng definition",
+    "english definition",
+    "eng meaning",
+    "english meaning",
+    "definition",
+    "definition en",
+    "định nghĩa",
+  ],
+  meaning_vi: [
+    "viet meaning",
+    "vietnamese meaning",
+    "vietnamese",
+    "nghĩa tiếng việt",
+    "nghĩa vi",
+    "nghĩa",
+    "dịch nghĩa",
+    "tiếng việt",
+    "translation",
+    "meaning vi",
+  ],
   example_en: ["example", "example sentence", "câu ví dụ", "sentence", "usage", "example en"],
-  example_vi: ["example translation", "nghĩa câu ví dụ", "example vi", "dịch câu"],
+  example_vi: ["example translation", "nghĩa câu ví dụ", "example vi", "dịch câu", "viet example"],
   synonyms: ["synonyms", "synonym", "từ đồng nghĩa"],
   antonyms: ["antonyms", "antonym", "từ trái nghĩa"],
 };
 
+function normalizeHeader(header: string): string {
+  return header
+    .toLowerCase()
+    .replace(/[._\-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function detectField(header: string): { field: VocabFieldKey | null; confidence: number } {
-  const h = header.toLowerCase().trim();
+  const h = normalizeHeader(header);
   let bestField: VocabFieldKey | null = null;
   let bestScore = 0;
 

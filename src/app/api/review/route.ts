@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { fsrsSchedule, selfRatingToFSRS, FSRSCard } from "@/lib/spaced-repetition/fsrs";
 import { z } from "zod";
@@ -62,13 +62,13 @@ export async function POST(req: NextRequest) {
       times_correct: (existing?.times_correct ?? 0) + (isCorrect ? 1 : 0),
       times_incorrect: (existing?.times_incorrect ?? 0) + (isCorrect ? 0 : 1),
       last_reviewed_at: new Date().toISOString(),
-      next_review_at: next_review.toISOString(),
-      stability: newCard.stability,
-      difficulty: newCard.difficulty,
-      elapsed_days: newCard.elapsed_days,
-      scheduled_days: newCard.scheduled_days,
-      reps: newCard.reps,
-      lapses: newCard.lapses,
+      next_review_at: (next_review instanceof Date && !isNaN(next_review.getTime()) ? next_review : new Date(Date.now() + 86400000)).toISOString(),
+      stability: Number.isFinite(newCard.stability) ? newCard.stability : 1,
+      difficulty: Number.isFinite(newCard.difficulty) ? newCard.difficulty : 5,
+      elapsed_days: Number.isFinite(newCard.elapsed_days) ? newCard.elapsed_days : 0,
+      scheduled_days: Number.isFinite(newCard.scheduled_days) ? newCard.scheduled_days : 1,
+      reps: Number.isFinite(newCard.reps) ? newCard.reps : 1,
+      lapses: Number.isFinite(newCard.lapses) ? newCard.lapses : 0,
       fsrs_state: newCard.state,
     };
 

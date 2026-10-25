@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { isAnswerCorrect } from "@/lib/utils";
+import { evaluateEnglishSentenceLocally } from "@/lib/ai/provider";
 
 interface PracticeResult {
   itemId: string;
@@ -94,6 +95,7 @@ export function PracticeSession({ items, onComplete }: PracticeEngineProps) {
     } else if (questionType === "fill_blank" && item.example_en) {
       isCorrect = isAnswerCorrect(answer, item.word);
     } else if (questionType === "vietnamese_recall") {
+      const targetMeaning = item.meaning_vi || item.definition_en || "";
       try {
         const res = await fetch("/api/ai/grade", {
           method: "POST",
@@ -101,45 +103,91 @@ export function PracticeSession({ items, onComplete }: PracticeEngineProps) {
           body: JSON.stringify({
             type: "vietnamese_recall",
             word: item.word,
-            meaning_vi: item.meaning_vi,
+            meaning_vi: targetMeaning,
             userAnswer: answer,
-            expectedAnswer: item.meaning_vi,
+            expectedAnswer: targetMeaning,
           }),
         });
         if (res.ok) {
           const data = await res.json();
           isCorrect = data.is_correct;
         } else {
-          isCorrect = isAnswerCorrect(answer, item.meaning_vi ?? "");
+          isCorrect = isAnswerCorrect(answer, targetMeaning);
         }
       } catch {
-        isCorrect = isAnswerCorrect(answer, item.meaning_vi ?? "");
+        isCorrect = isAnswerCorrect(answer, targetMeaning);
       }
     } else if (questionType === "sentence_writing") {
+      const targetMeaning = item.meaning_vi || item.definition_en || "";
+      const storedKey = typeof window !== "undefined" ? localStorage.getItem("habitrabbit_ai_api_key") : null;
+
       try {
         const res = await fetch("/api/ai/grade", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(storedKey ? { "x-ai-api-key": storedKey } : {}),
+          },
           body: JSON.stringify({
             type: "sentence_writing",
             word: item.word,
-            meaning_vi: item.meaning_vi,
+            meaning_vi: targetMeaning,
             userAnswer: answer,
+            part_of_speech: item.part_of_speech,
+            example_en: item.example_en,
+            example_vi: item.example_vi,
+            customApiKey: storedKey || undefined,
           }),
         });
+
         if (res.ok) {
           feedback = await res.json();
-          isCorrect = feedback?.target_word_used_correctly ?? false;
+          // STRICT ENGLISH TEACHER CRITERIA:
+          // A sentence is ONLY correct if target word is properly used AND score >= 70
+          isCorrect = Boolean(feedback?.target_word_used_correctly) && (feedback?.score ?? 0) >= 70;
         } else {
-          isCorrect = answer.toLowerCase().includes(item.word.toLowerCase());
+          // If server fails or offline, use our local teacher engine
+          feedback = evaluateEnglishSentenceLocally(
+            item.word,
+            targetMeaning,
+            answer,
+            item.part_of_speech,
+            item.example_en,
+            item.example_vi
+          );
+          isCorrect = feedback.target_word_used_correctly && feedback.score >= 70;
         }
       } catch {
-        isCorrect = answer.toLowerCase().includes(item.word.toLowerCase());
+        feedback = evaluateEnglishSentenceLocally(
+          item.word,
+          targetMeaning,
+          answer,
+          item.part_of_speech,
+          item.example_en,
+          item.example_vi
+        );
+        isCorrect = feedback.target_word_used_correctly && feedback.score >= 70;
+      }
+
+      // If translation is missing, fetch fast Vietnamese translation
+      if (!feedback?.vietnamese_translation && answer.trim()) {
+        try {
+          const transRes = await fetch(
+            `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=vi&dt=t&q=${encodeURIComponent(answer.trim())}`
+          );
+          if (transRes.ok) {
+            const transData = await transRes.json();
+            const translatedText = transData?.[0]?.[0]?.[0] || "";
+            if (translatedText && feedback) {
+              feedback.vietnamese_translation = translatedText;
+            }
+          }
+        } catch {}
       }
     }
 
     // Record review log with SRS update
-    await fetch("/api/review", {
+    fetch("/api/review", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -156,7 +204,7 @@ export function PracticeSession({ items, onComplete }: PracticeEngineProps) {
       isCorrect,
       userAnswer: answer,
       expectedAnswer:
-        questionType === "english_recall" ? item.word : item.meaning_vi ?? item.word,
+        questionType === "english_recall" ? item.word : (item.meaning_vi || item.definition_en || item.word),
       feedback,
     };
 
@@ -199,56 +247,85 @@ export function PracticeSession({ items, onComplete }: PracticeEngineProps) {
       {/* Main Question Card */}
       <Card className="p-6 sm:p-8 space-y-6 border-gray-100 shadow-sm">
         {/* Question prompt */}
-        <div className="space-y-2 text-center sm:text-left">
+        <div className="space-y-3 text-center sm:text-left">
           {questionType === "english_recall" && (
-            <div>
-              <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">
+            <div className="space-y-3">
+              <p className="text-xs text-indigo-600 font-semibold uppercase tracking-wider">
                 Từ tiếng Anh tương ứng với nghĩa này là gì?
               </p>
-              <h3 className="text-2xl font-bold text-gray-900">{item.meaning_vi}</h3>
+              <div className="bg-indigo-50/80 p-5 rounded-2xl border border-indigo-100 text-center sm:text-left">
+                <h3 className="text-2xl sm:text-3xl font-extrabold text-gray-900">
+                  {item.meaning_vi || item.definition_en || "Chưa có nghĩa"}
+                </h3>
+                {item.definition_en && item.meaning_vi && item.definition_en !== item.meaning_vi && (
+                  <p className="text-xs text-gray-500 mt-1 italic">
+                    Định nghĩa: {item.definition_en}
+                  </p>
+                )}
+              </div>
               {item.part_of_speech && (
-                <p className="text-xs text-indigo-600 mt-1">Loại từ: {item.part_of_speech}</p>
+                <div className="flex items-center gap-2">
+                  <Badge variant="purple" size="sm">Loại từ: {item.part_of_speech}</Badge>
+                  {item.ipa && (
+                    <span className="text-xs text-gray-400 font-mono">Phiên âm: /{item.ipa.replace(/^\/+|\/+$/g, "")}/</span>
+                  )}
+                </div>
               )}
             </div>
           )}
 
           {questionType === "vietnamese_recall" && (
-            <div>
-              <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">
+            <div className="space-y-3">
+              <p className="text-xs text-indigo-600 font-semibold uppercase tracking-wider">
                 Nghĩa tiếng Việt của từ này là gì?
               </p>
-              <h3 className="text-3xl font-extrabold text-gray-900">{item.word}</h3>
-              {item.ipa && (
-                <p className="text-sm text-indigo-600 font-mono mt-0.5">/{item.ipa}/</p>
+              <div className="bg-indigo-50/80 p-5 rounded-2xl border border-indigo-100 text-center sm:text-left">
+                <h3 className="text-3xl font-extrabold text-gray-900">{item.word}</h3>
+                {item.ipa && (
+                  <p className="text-sm text-indigo-600 font-mono mt-1 font-medium">/{item.ipa.replace(/^\/+|\/+$/g, "")}/</p>
+                )}
+              </div>
+              {item.part_of_speech && (
+                <Badge variant="purple" size="sm">Loại từ: {item.part_of_speech}</Badge>
               )}
             </div>
           )}
 
-          {questionType === "fill_blank" && item.example_en && (
-            <div>
-              <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-2">
-                Điền từ thích hợp vào chỗ trống (Nghĩa: {item.meaning_vi})
+          {questionType === "fill_blank" && (
+            <div className="space-y-3">
+              <p className="text-xs text-indigo-600 font-semibold uppercase tracking-wider">
+                Điền từ thích hợp vào chỗ trống (Nghĩa: {item.meaning_vi || item.definition_en})
               </p>
-              <p className="text-lg text-gray-800 italic bg-gray-50 p-4 rounded-2xl border border-gray-100 font-serif">
-                "{highlightBlank(item.example_en, item.word)}"
-              </p>
+              <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100">
+                <p className="text-lg text-gray-800 italic font-serif leading-relaxed">
+                  "{item.example_en ? highlightBlank(item.example_en, item.word) : `I need to ______ the ${item.word}.`}"
+                </p>
+                {item.example_vi && (
+                  <p className="text-xs text-gray-500 mt-2 font-sans">→ {item.example_vi}</p>
+                )}
+              </div>
+              {item.part_of_speech && (
+                <Badge variant="purple" size="sm">Loại từ: {item.part_of_speech}</Badge>
+              )}
             </div>
           )}
 
           {questionType === "sentence_writing" && (
-            <div>
+            <div className="space-y-2">
               <div className="flex items-center gap-2 mb-1">
                 <Sparkles className="w-4 h-4 text-indigo-600" />
                 <p className="text-xs text-indigo-600 font-semibold uppercase tracking-wider">
                   Thực hành đặt câu tiếng Anh có chứa từ:
                 </p>
               </div>
-              <h3 className="text-2xl font-bold text-gray-900">
-                {item.word}{" "}
-                <span className="text-sm font-normal text-gray-500">
-                  ({item.meaning_vi || item.part_of_speech})
-                </span>
-              </h3>
+              <div className="bg-indigo-50/80 p-4 rounded-2xl border border-indigo-100">
+                <h3 className="text-2xl font-bold text-gray-900">
+                  {item.word}{" "}
+                  <span className="text-sm font-normal text-gray-600">
+                    ({item.meaning_vi || item.definition_en || item.part_of_speech})
+                  </span>
+                </h3>
+              </div>
               <p className="text-xs text-gray-500 mt-1">
                 AI sẽ đánh giá ngữ pháp, độ tự nhiên và giải thích chi tiết bằng tiếng Việt.
               </p>
@@ -296,75 +373,193 @@ export function PracticeSession({ items, onComplete }: PracticeEngineProps) {
             {/* Answer banner */}
             <div
               className={`p-4 rounded-2xl border flex items-start gap-3 ${
-                result?.correct
+                questionType === "sentence_writing" && result?.feedback
+                  ? result.feedback.score >= 75
+                    ? "bg-emerald-50/70 border-emerald-200 text-emerald-900"
+                    : result.feedback.score >= 50
+                    ? "bg-amber-50/70 border-amber-200 text-amber-900"
+                    : "bg-red-50/70 border-red-200 text-red-900"
+                  : result?.correct
                   ? "bg-emerald-50/70 border-emerald-200 text-emerald-900"
                   : "bg-red-50/70 border-red-200 text-red-900"
               }`}
             >
               <div
                 className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                  result?.correct
+                  questionType === "sentence_writing" && result?.feedback
+                    ? result.feedback.score >= 75
+                      ? "bg-emerald-100 text-emerald-700"
+                      : result.feedback.score >= 50
+                      ? "bg-amber-100 text-amber-700"
+                      : "bg-red-100 text-red-700"
+                    : result?.correct
                     ? "bg-emerald-100 text-emerald-700"
                     : "bg-red-100 text-red-700"
                 }`}
               >
-                {result?.correct ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                {questionType === "sentence_writing" && result?.feedback ? (
+                  result.feedback.score >= 75 ? (
+                    <Check className="w-4 h-4" />
+                  ) : result.feedback.score >= 50 ? (
+                    <AlertCircle className="w-4 h-4" />
+                  ) : (
+                    <X className="w-4 h-4" />
+                  )
+                ) : result?.correct ? (
+                  <Check className="w-4 h-4" />
+                ) : (
+                  <X className="w-4 h-4" />
+                )}
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5 flex-1">
                 <p className="text-sm font-bold">
-                  {result?.correct ? "Chính xác! Làm rất tốt." : "Chưa chính xác"}
+                  {questionType === "sentence_writing" && result?.feedback
+                    ? result.feedback.score >= 75
+                      ? "✅ Đạt yêu cầu! Câu đúng ngữ pháp và tự nhiên"
+                      : result.feedback.score >= 50
+                      ? `⚠️ Cần cải thiện (Điểm: ${result.feedback.score}/100)`
+                      : `❌ Chưa đạt (Điểm: ${result.feedback.score}/100) — Xem nhận xét sửa bài bên dưới`
+                    : result?.correct
+                    ? "Chính xác! Làm rất tốt."
+                    : "Chưa chính xác"}
                 </p>
                 <p className="text-xs">
-                  Câu trả lời của bạn: <span className="font-semibold">{answer}</span>
+                  Câu trả lời của bạn: <span className="font-semibold underline decoration-dashed">{answer}</span>
                 </p>
-                {!result?.correct && questionType !== "sentence_writing" && (
-                  <p className="text-xs">
-                    Đáp án đúng:{" "}
-                    <span className="font-bold underline">
-                      {questionType === "english_recall" || questionType === "fill_blank"
-                        ? item.word
-                        : item.meaning_vi}
+
+                {/* Dịch nghĩa câu của bạn (cả đúng lẫn sai để người học đối chiếu) */}
+                {result?.feedback?.vietnamese_translation && (
+                  <div
+                    className={`p-2.5 rounded-xl border text-xs mt-1.5 ${
+                      result?.correct
+                        ? "bg-emerald-100/70 border-emerald-200/80 text-emerald-950"
+                        : "bg-white/90 border-red-200/80 text-gray-900"
+                    }`}
+                  >
+                    <span className="font-bold flex items-center gap-1 text-[11px] text-gray-600 mb-0.5">
+                      🇻🇳 Dịch nghĩa câu bạn vừa viết:
                     </span>
-                  </p>
+                    <p className="text-sm font-semibold italic text-gray-900">
+                      "{result.feedback.vietnamese_translation}"
+                    </p>
+                  </div>
+                )}
+
+                {/* Other question types feedback */}
+                {questionType !== "sentence_writing" && (
+                  <>
+                    {result?.correct && (
+                      <div className="pt-1 space-y-1 text-xs">
+                        {questionType === "english_recall" && (item.meaning_vi || item.definition_en) && (
+                          <p className="text-xs text-emerald-800">
+                            Nghĩa: <span className="font-semibold">{item.meaning_vi || item.definition_en}</span>
+                          </p>
+                        )}
+                        {questionType === "fill_blank" && item.example_vi && (
+                          <p className="text-xs text-emerald-800">
+                            Dịch câu: <span className="font-semibold">{item.example_vi}</span>
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {!result?.correct && (
+                      <div className="pt-1 space-y-2 text-xs">
+                        <p className="text-xs text-red-950">
+                          Đáp án đúng:{" "}
+                          <span className="font-bold underline text-sm">
+                            {questionType === "english_recall" || questionType === "fill_blank"
+                              ? item.word
+                              : (item.meaning_vi || item.definition_en)}
+                          </span>
+                        </p>
+                        {item.example_en && (
+                          <div className="bg-white/85 p-3 rounded-xl border border-red-200/70 text-xs space-y-1">
+                            <p className="font-bold text-red-900 flex items-center gap-1">
+                              💡 Câu ví dụ tham khảo cho từ "{item.word}":
+                            </p>
+                            <p className="text-sm font-medium italic text-gray-900">
+                              "{item.example_en}"
+                            </p>
+                            {item.example_vi && (
+                              <p className="text-gray-600">→ {item.example_vi}</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
 
             {/* AI Grading result for sentence writing */}
             {result?.feedback && (
-              <div className="bg-gray-50/90 rounded-2xl p-5 border border-gray-100 space-y-3.5 text-xs text-gray-700">
-                <div className="flex items-center justify-between pb-2 border-b border-gray-200/60">
-                  <div className="flex items-center gap-1.5 font-semibold text-indigo-700">
-                    <Sparkles className="w-4 h-4" />
-                    <span>Đánh giá từ AI (Điểm: {result.feedback.score}/100)</span>
+              <div className="bg-white rounded-2xl p-5 border border-indigo-100 shadow-sm space-y-3.5 text-xs text-gray-700">
+                <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                  <div className="flex items-center gap-2 font-bold text-sm text-indigo-900">
+                    <span className="p-1 rounded-lg bg-indigo-50 text-base">🐰</span>
+                    <span>Thỏ HabitRabbit Nhận xét & Hướng dẫn</span>
                   </div>
-                  <Badge variant={result.feedback.score >= 80 ? "success" : "warning"}>
-                    {result.feedback.score >= 80 ? "Tự nhiên" : "Cần hoàn thiện"}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-gray-700">
+                      Điểm: <span className={result.feedback.score >= 80 ? "text-emerald-600 text-sm" : result.feedback.score >= 50 ? "text-amber-600 text-sm" : "text-rose-600 text-sm"}>{result.feedback.score}</span>/100
+                    </span>
+                    <Badge
+                      variant={
+                        result.feedback.score >= 80
+                          ? "success"
+                          : result.feedback.score >= 50
+                          ? "warning"
+                          : "error"
+                      }
+                    >
+                      {result.feedback.score >= 80
+                        ? "Chuẩn & Tự nhiên"
+                        : result.feedback.score >= 50
+                        ? "Cần cải thiện"
+                        : "Sai cấu trúc"}
+                    </Badge>
+                  </div>
                 </div>
 
+                {/* Corrected sentence box */}
                 {result.feedback.corrected_sentence && (
-                  <div>
-                    <span className="font-semibold text-gray-900">Câu gợi ý tự nhiên hơn: </span>
-                    <p className="text-sm font-medium text-emerald-700 mt-0.5 italic">
+                  <div className="p-3 bg-emerald-50/80 rounded-xl border border-emerald-200/90 space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-emerald-900 text-xs">
+                      <span>✏️ Câu gợi ý chuẩn từ Thỏ HabitRabbit (tự nhiên & đúng ngữ cảnh):</span>
+                    </div>
+                    <p className="text-sm font-bold text-emerald-950 italic">
                       "{result.feedback.corrected_sentence}"
                     </p>
                   </div>
                 )}
 
+                {/* Grammar feedback */}
                 {result.feedback.grammar_feedback && (
-                  <div>
-                    <span className="font-semibold text-gray-800">Nhận xét ngữ pháp: </span>
-                    <p className="mt-0.5">{result.feedback.grammar_feedback}</p>
+                  <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200/80 space-y-1">
+                    <span className="font-bold text-amber-900 text-xs flex items-center gap-1.5">
+                      <span>🔍 Phân tích chi tiết lỗi ngữ pháp:</span>
+                    </span>
+                    <p className="text-xs text-amber-950 font-medium leading-relaxed whitespace-pre-line">
+                      {result.feedback.grammar_feedback}
+                    </p>
                   </div>
                 )}
 
+                {/* Pedagogical explanation */}
                 {result.feedback.vietnamese_explanation && (
-                  <div className="bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100/50">
-                    <span className="font-semibold text-indigo-900">Giải thích tiếng Việt: </span>
-                    <p className="mt-0.5 text-indigo-900/90">
+                  <div className="p-3.5 bg-indigo-50/70 rounded-xl border border-indigo-200/70 space-y-1.5">
+                    <span className="font-bold text-indigo-900 text-xs flex items-center gap-1.5">
+                      <span>💡 Lời khuyên từ Thỏ:</span>
+                    </span>
+                    <p className="text-xs text-indigo-950 leading-relaxed whitespace-pre-line font-medium">
                       {result.feedback.vietnamese_explanation}
                     </p>
+                    {result.feedback.suggested_next_step && (
+                      <p className="pt-1 text-xs font-bold text-indigo-700">
+                        👉 Hướng dẫn tiếp theo: {result.feedback.suggested_next_step}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

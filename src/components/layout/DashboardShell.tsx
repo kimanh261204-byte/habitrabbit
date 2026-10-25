@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -70,13 +71,19 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         )}
       >
         {/* Logo */}
-        <div className="h-16 flex items-center px-6 border-b border-gray-100 shrink-0">
-          <Link href="/dashboard" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl flex items-center justify-center shadow-xs">
-              <Zap className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-lg font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
-              VocaFlow
+        <div className="h-16 flex items-center px-5 border-b border-gray-100 shrink-0">
+          <Link href="/dashboard" className="flex items-center gap-2.5 group">
+            <Image
+              src="/habitrabbit-logo.png"
+              alt="HabitRabbit"
+              width={38}
+              height={52}
+              className="h-11 w-auto object-contain transition-transform duration-200 group-hover:scale-105"
+              priority
+              unoptimized
+            />
+            <span className="text-xl font-extrabold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent">
+              HabitRabbit
             </span>
           </Link>
           <button
@@ -153,10 +160,16 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-lg flex items-center justify-center">
-              <Zap className="w-3.5 h-3.5 text-white" />
-            </div>
-            <span className="font-bold text-gray-900 text-sm">VocaFlow</span>
+            <Image
+              src="/habitrabbit-logo.png"
+              alt="HabitRabbit"
+              width={28}
+              height={38}
+              className="h-8 w-auto object-contain"
+              priority
+              unoptimized
+            />
+            <span className="font-extrabold text-gray-900 text-sm">HabitRabbit</span>
           </div>
           <div className="w-9" />
         </header>

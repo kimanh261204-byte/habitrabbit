@@ -1,4 +1,4 @@
-﻿-- ============================================================
+-- ============================================================
 -- VocaFlow Database Schema - Migration 001
 -- Run this in your Supabase SQL Editor or psql
 -- ============================================================
@@ -261,23 +261,34 @@ CREATE POLICY "Users manage own quiz attempts" ON quiz_attempts FOR ALL USING (a
 -- ============================================================
 -- TRIGGER: auto-create profile and settings on signup
 -- ============================================================
-CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER 
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
-  INSERT INTO profiles (id, display_name)
-  VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)));
+  INSERT INTO public.profiles (id, display_name)
+  VALUES (
+    NEW.id, 
+    COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1), 'User')
+  )
+  ON CONFLICT (id) DO NOTHING;
 
-  INSERT INTO user_settings (user_id)
-  VALUES (NEW.id);
+  INSERT INTO public.user_settings (user_id)
+  VALUES (NEW.id)
+  ON CONFLICT (user_id) DO NOTHING;
 
   RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- ============================================================
 -- UPDATED_AT trigger function

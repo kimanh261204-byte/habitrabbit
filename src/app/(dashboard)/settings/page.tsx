@@ -51,6 +51,12 @@ export default function SettingsPage() {
           setDailyGoal(userSettings.daily_goal || 20);
           setLessonSize(userSettings.default_lesson_size || 20);
         }
+
+        // Load custom API key from localStorage
+        const savedKey = localStorage.getItem("habitrabbit_ai_api_key");
+        if (savedKey) {
+          setCustomApiKey(savedKey);
+        }
       }
       setLoading(false);
     };
@@ -82,6 +88,13 @@ export default function SettingsPage() {
           default_lesson_size: lessonSize,
           updated_at: new Date().toISOString(),
         });
+
+      // Save API key to localStorage
+      if (customApiKey.trim()) {
+        localStorage.setItem("habitrabbit_ai_api_key", customApiKey.trim());
+      } else {
+        localStorage.removeItem("habitrabbit_ai_api_key");
+      }
 
       if (!upsertError) {
         setSavedSuccess(true);
@@ -255,15 +268,26 @@ export default function SettingsPage() {
               </div>
             </label>
 
-            <div>
+            <div className="space-y-1.5">
               <Input
-                label="Custom Google Gemini API Key (Tùy chọn)"
+                label="Google Gemini / OpenAI API Key (Tùy chọn)"
                 type="password"
                 value={customApiKey}
                 onChange={(e) => setCustomApiKey(e.target.value)}
-                placeholder="AIzaSy..."
-                hint="Mặc định hệ thống sử dụng khóa máy chủ. Bạn có thể nhập khóa cá nhân nếu muốn hạn mức riêng biệt."
+                placeholder="AIzaSy... hoặc sk-..."
+                hint="Mặc định hệ thống sử dụng thuật toán Thỏ AI HabitRabbit tích hợp sẵn. Bạn có thể nhập Gemini API Key miễn phí từ aistudio.google.com hoặc OpenAI Key để chấm bài với mô hình ngôn ngữ lớn mạnh mẽ nhất."
               />
+              <p className="text-[11px] text-gray-500">
+                👉 Lấy Google Gemini API Key miễn phí tại:{" "}
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-600 underline font-semibold hover:text-indigo-700"
+                >
+                  aistudio.google.com/app/apikey
+                </a>
+              </p>
             </div>
           </div>
         </Card>

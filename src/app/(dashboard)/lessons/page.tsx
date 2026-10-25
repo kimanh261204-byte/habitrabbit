@@ -31,6 +31,8 @@ interface LessonItem {
 export default function LessonsPage() {
   const supabase = createClient();
   const [lessons, setLessons] = useState<LessonItem[]>([]);
+  const [libraries, setLibraries] = useState<{ id: string; name: string }[]>([]);
+  const [selectedLibraryId, setSelectedLibraryId] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "not_started" | "learning" | "completed">("all");
@@ -42,19 +44,23 @@ export default function LessonsPage() {
         if (!user) return;
 
         // Fetch libraries for user
-        const { data: libraries } = await supabase
+        const { data: userLibraries } = await supabase
           .from("vocabulary_libraries")
           .select("id, name")
-          .eq("user_id", user.id);
+          .eq("user_id", user.id)
+          .order("name", { ascending: true });
 
-        if (!libraries || libraries.length === 0) {
+        const libs = userLibraries || [];
+        setLibraries(libs);
+
+        if (libs.length === 0) {
           setLessons([]);
           setLoading(false);
           return;
         }
 
-        const libMap = new Map(libraries.map((l) => [l.id, l.name]));
-        const libIds = libraries.map((l) => l.id);
+        const libMap = new Map(libs.map((l) => [l.id, l.name]));
+        const libIds = libs.map((l) => l.id);
 
         const { data: rawLessons } = await supabase
           .from("lessons")
@@ -79,6 +85,9 @@ export default function LessonsPage() {
   }, []);
 
   const filtered = lessons.filter((lesson) => {
+    if (selectedLibraryId !== "all" && lesson.library_id !== selectedLibraryId) {
+      return false;
+    }
     const matchesSearch =
       lesson.title.toLowerCase().includes(search.toLowerCase()) ||
       lesson.library_name.toLowerCase().includes(search.toLowerCase());
@@ -126,6 +135,42 @@ export default function LessonsPage() {
         </Link>
       </div>
 
+      {/* Course / Library Filter Pills */}
+      {libraries.length > 1 && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+          <span className="text-gray-400 font-medium whitespace-nowrap pl-1">Khóa học:</span>
+          <button
+            type="button"
+            onClick={() => setSelectedLibraryId("all")}
+            className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap transition-all ${
+              selectedLibraryId === "all"
+                ? "bg-indigo-600 text-white shadow-xs"
+                : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            Tất cả ({lessons.length})
+          </button>
+          {libraries.map((lib) => {
+            const count = lessons.filter((l) => l.library_id === lib.id).length;
+            const shortName = lib.name.replace(/^Khóa \d+:\s*/, "");
+            return (
+              <button
+                key={lib.id}
+                type="button"
+                onClick={() => setSelectedLibraryId(lib.id)}
+                className={`px-3 py-1.5 rounded-xl font-medium whitespace-nowrap transition-all ${
+                  selectedLibraryId === lib.id
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                {lib.name.startsWith("Khóa ") ? lib.name.split(":")[0] : shortName} ({count})
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Search & Filter bar */}
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
         <div className="relative flex-1 max-w-md">
@@ -134,14 +179,14 @@ export default function LessonsPage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Tìm theo tên bài học hoặc thư viện..."
+            placeholder="Tìm theo tên bài học..."
             className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
 
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
           {[
-            { id: "all", label: "Tất cả" },
+            { id: "all", label: "Tất cả trạng thái" },
             { id: "not_started", label: "Chưa học" },
             { id: "learning", label: "Đang học" },
             { id: "completed", label: "Đã xong" },

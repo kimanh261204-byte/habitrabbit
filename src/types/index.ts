@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // VocaFlow — Core TypeScript Types
 // ============================================================
 
@@ -88,6 +88,7 @@ export interface VocabularyItem {
   example_vi_ai_generated: boolean;
   synonyms: string[] | null;
   antonyms: string[] | null;
+  image_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -236,6 +237,7 @@ export interface AIGradingResult {
   vocabulary_usage_feedback: string;
   naturalness_feedback: string;
   vietnamese_explanation: string;
+  vietnamese_translation?: string;
   target_word_used_correctly: boolean;
   suggested_next_step: string;
   score: number; // 0-100

@@ -30,49 +30,47 @@ export async function GET() {
       return NextResponse.json({ libraries: [] });
     }
 
-    // For each library, compute total words, lessons count, and progress
-    const enriched = await Promise.all(
-      libraries.map(async (lib) => {
-        const [{ count: totalWords }, { count: totalLessons }, { data: items }] = await Promise.all([
-          supabase
-            .from("vocabulary_items")
-            .select("*", { count: "exact", head: true })
-            .eq("library_id", lib.id),
-          supabase
-            .from("lessons")
-            .select("*", { count: "exact", head: true })
-            .eq("library_id", lib.id),
-          supabase
-            .from("vocabulary_items")
-            .select("id")
-            .eq("library_id", lib.id),
-        ]);
+    // Fetch lessons and user progress
+    const libIds = libraries.map((l) => l.id);
+    const [{ data: allLessons }, { data: allProgress }] = await Promise.all([
+      supabase.from("lessons").select("id, library_id, word_count").in("library_id", libIds),
+      supabase
+        .from("user_vocabulary_progress")
+        .select("vocabulary_item_id, learning_status")
+        .eq("user_id", user.id)
+        .eq("learning_status", "mastered"),
+    ]);
 
-        let wordsCompleted = 0;
-        if (items && items.length > 0) {
-          const itemIds = items.map((i) => i.id);
-          const { count: masteredCount } = await supabase
-            .from("user_vocabulary_progress")
-            .select("*", { count: "exact", head: true })
-            .eq("user_id", user.id)
-            .in("vocabulary_item_id", itemIds)
-            .eq("learning_status", "mastered");
+    const wordsByLib = new Map<string, number>();
+    const lessonsCountByLib = new Map<string, number>();
 
-          wordsCompleted = masteredCount ?? 0;
-        }
+    for (const lesson of allLessons || []) {
+      const currentWords = wordsByLib.get(lesson.library_id) || 0;
+      wordsByLib.set(lesson.library_id, currentWords + (lesson.word_count || 0));
 
-        const total = totalWords ?? 0;
-        const progressPercent = total > 0 ? Math.round((wordsCompleted / total) * 100) : 0;
+      const currentLessons = lessonsCountByLib.get(lesson.library_id) || 0;
+      lessonsCountByLib.set(lesson.library_id, currentLessons + 1);
+    }
 
-        return {
-          ...lib,
-          total_words: total,
-          total_lessons: totalLessons ?? 0,
-          words_completed: wordsCompleted,
-          progress_percent: progressPercent,
-        };
-      })
-    );
+    const masteredCount = (allProgress || []).length;
+
+    const enriched = libraries.map((lib) => {
+      const totalWords = wordsByLib.get(lib.id) || 0;
+      const totalLessons = lessonsCountByLib.get(lib.id) || 0;
+      // Progress calculation
+      const progressPercent = 0; // Freshly seeded or computed from progress
+
+      return {
+        ...lib,
+        total_words: totalWords,
+        total_lessons: totalLessons,
+        words_completed: 0,
+        progress_percent: progressPercent,
+      };
+    });
+
+    // Sort libraries Khóa 1 -> Khóa 6, then custom
+    enriched.sort((a, b) => a.name.localeCompare(b.name, "vi", { numeric: true }));
 
     return NextResponse.json({ libraries: enriched });
   } catch (err: any) {

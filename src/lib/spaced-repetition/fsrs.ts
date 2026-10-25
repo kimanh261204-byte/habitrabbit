@@ -1,4 +1,4 @@
-﻿/**
+/**
  * FSRS-4.5 Spaced Repetition Algorithm
  * Based on: https://github.com/open-spaced-repetition/fsrs4anki
  * Adapted for VocaFlow
@@ -86,11 +86,13 @@ function forgettingCurve(elapsedDays: number, stability: number): number {
 }
 
 function nextInterval(stability: number): number {
+  if (!Number.isFinite(stability) || stability <= 0) return 1;
   const { FACTOR, DECAY, REQUEST_RETENTION } = FSRS_PARAMS;
   const interval =
     (stability / FACTOR) *
     (Math.pow(REQUEST_RETENTION, 1 / DECAY) - 1);
-  return Math.max(Math.round(interval), 1);
+  const rounded = Math.round(interval);
+  return Number.isFinite(rounded) && rounded >= 1 ? rounded : 1;
 }
 
 export function selfRatingToFSRS(rating: "again" | "hard" | "good" | "easy"): FSRSRating {
@@ -100,7 +102,7 @@ export function selfRatingToFSRS(rating: "again" | "hard" | "good" | "easy"): FS
     good: 3,
     easy: 4,
   };
-  return map[rating];
+  return map[rating] || 3;
 }
 
 export function fsrsSchedule(
@@ -111,18 +113,20 @@ export function fsrsSchedule(
   const newCard: FSRSCard = { ...card };
   let scheduledDays = 0;
 
-  const elapsedDays = card.last_review
+  const validNow = now instanceof Date && !isNaN(now.getTime()) ? now : new Date();
+
+  const elapsedDays = card.last_review instanceof Date && !isNaN(card.last_review.getTime())
     ? Math.max(
         0,
         Math.round(
-          (now.getTime() - card.last_review.getTime()) / (1000 * 60 * 60 * 24)
+          (validNow.getTime() - card.last_review.getTime()) / (1000 * 60 * 60 * 24)
         )
       )
     : 0;
 
-  newCard.elapsed_days = elapsedDays;
-  newCard.reps += 1;
-  newCard.last_review = now;
+  newCard.elapsed_days = Number.isFinite(elapsedDays) ? elapsedDays : 0;
+  newCard.reps = (Number.isFinite(card.reps) ? card.reps : 0) + 1;
+  newCard.last_review = validNow;
 
   if (card.state === 0) {
     // New card
@@ -161,26 +165,34 @@ export function fsrsSchedule(
     }
   } else {
     // Review state
-    const r = forgettingCurve(elapsedDays, card.stability);
-    newCard.difficulty = nextDifficulty(card.difficulty, rating);
+    const safeStability = Number.isFinite(card.stability) && card.stability > 0 ? card.stability : 1;
+    const safeDifficulty = Number.isFinite(card.difficulty) && card.difficulty >= 1 ? card.difficulty : 5;
+    const r = forgettingCurve(elapsedDays, safeStability);
+    newCard.difficulty = nextDifficulty(safeDifficulty, rating);
 
     if (rating === 1) {
-      newCard.lapses += 1;
+      newCard.lapses = (Number.isFinite(card.lapses) ? card.lapses : 0) + 1;
       newCard.state = 3; // Relearning
-      newCard.stability = nextForgetStability(newCard.difficulty, card.stability, r);
+      newCard.stability = nextForgetStability(newCard.difficulty, safeStability, r);
       scheduledDays = 0;
     } else {
       newCard.state = 2;
-      newCard.stability = nextRecallStability(newCard.difficulty, card.stability, r, rating);
+      newCard.stability = nextRecallStability(newCard.difficulty, safeStability, r, rating);
       scheduledDays = nextInterval(newCard.stability);
     }
   }
 
-  newCard.scheduled_days = scheduledDays;
-  const nextReview = new Date(now);
-  nextReview.setDate(nextReview.getDate() + scheduledDays);
+  // Ensure all values are strictly finite numbers
+  if (!Number.isFinite(newCard.stability) || newCard.stability <= 0) newCard.stability = 1;
+  if (!Number.isFinite(newCard.difficulty)) newCard.difficulty = 5;
+  if (!Number.isFinite(scheduledDays) || scheduledDays < 0) scheduledDays = 1;
 
-  return { card: newCard, next_review: nextReview, scheduled_days: scheduledDays };
+  newCard.scheduled_days = scheduledDays;
+  const nextReview = new Date(validNow);
+  nextReview.setDate(nextReview.getDate() + scheduledDays);
+  const safeNextReview = !isNaN(nextReview.getTime()) ? nextReview : new Date(Date.now() + 86400000);
+
+  return { card: newCard, next_review: safeNextReview, scheduled_days: scheduledDays };
 }
 
 export function newFSRSCard(): FSRSCard {

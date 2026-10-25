@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Zap, Mail, ArrowLeft, CheckCircle2, AlertCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -62,12 +63,18 @@ export default function ForgotPasswordPage() {
   return (
     <div className="w-full max-w-md mx-auto p-6 sm:p-8 bg-white rounded-3xl border border-gray-100 shadow-xl space-y-6">
       <div className="text-center space-y-2">
-        <Link href="/" className="inline-flex items-center gap-2 mb-2">
-          <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl flex items-center justify-center shadow-xs">
-            <Zap className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
-            VocaFlow
+        <Link href="/" className="inline-flex items-center gap-2.5 mb-2 group">
+          <Image
+            src="/habitrabbit-logo.png"
+            alt="HabitRabbit Logo"
+            width={40}
+            height={54}
+            className="h-12 w-auto object-contain group-hover:scale-105 transition-transform"
+            priority
+            unoptimized
+          />
+          <span className="text-2xl font-extrabold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent">
+            HabitRabbit
           </span>
         </Link>
         <h1 className="text-2xl font-bold text-gray-900">Quên mật khẩu?</h1>

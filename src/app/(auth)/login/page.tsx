@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Zap, Mail, Lock, AlertCircle, ArrowRight } from "lucide-react";
@@ -21,14 +22,36 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      let { error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
 
+      // If email is not confirmed, auto-confirm it via server API and retry!
+      if (signInError && signInError.message.toLowerCase().includes("email not confirmed")) {
+        try {
+          const confirmRes = await fetch("/api/auth/auto-confirm", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: email.trim() }),
+          });
+          if (confirmRes.ok) {
+            const retryRes = await supabase.auth.signInWithPassword({
+              email: email.trim(),
+              password,
+            });
+            signInError = retryRes.error;
+          }
+        } catch {}
+      }
+
       if (signInError) {
         if (signInError.message.includes("Invalid login credentials")) {
           setError("Email hoặc mật khẩu không chính xác. Vui lòng thử lại.");
+        } else if (signInError.message.includes("Failed to fetch")) {
+          setError(
+            "Chưa cấu hình Supabase! Vui lòng cập nhật NEXT_PUBLIC_SUPABASE_URL và NEXT_PUBLIC_SUPABASE_ANON_KEY thật trong file .env.local để đăng nhập."
+          );
         } else {
           setError(signInError.message);
         }
@@ -48,12 +71,18 @@ export default function LoginPage() {
     <div className="w-full max-w-md mx-auto p-6 sm:p-8 bg-white rounded-3xl border border-gray-100 shadow-xl space-y-6">
       {/* Brand header */}
       <div className="text-center space-y-2">
-        <Link href="/" className="inline-flex items-center gap-2 mb-2">
-          <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl flex items-center justify-center shadow-xs">
-            <Zap className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
-            VocaFlow
+        <Link href="/" className="inline-flex items-center gap-2.5 mb-2 group">
+          <Image
+            src="/habitrabbit-logo.png"
+            alt="HabitRabbit Logo"
+            width={40}
+            height={54}
+            className="h-12 w-auto object-contain group-hover:scale-105 transition-transform"
+            priority
+            unoptimized
+          />
+          <span className="text-2xl font-extrabold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent">
+            HabitRabbit
           </span>
         </Link>
         <h1 className="text-2xl font-bold text-gray-900">Chào mừng trở lại</h1>

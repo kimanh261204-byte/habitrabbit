@@ -14,6 +14,8 @@ export default function LessonLearnPage() {
   const [loading, setLoading] = useState(true);
   const [accent, setAccent] = useState<"us" | "uk">("us");
 
+  const [submitting, setSubmitting] = useState(false);
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -37,7 +39,7 @@ export default function LessonLearnPage() {
         }
 
         // Mark lesson status as learning
-        await fetch(`/api/lessons/${id}/progress`, {
+        fetch(`/api/lessons/${id}/progress`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "learning" }),
@@ -54,19 +56,29 @@ export default function LessonLearnPage() {
     }
   }, [id]);
 
-  const handleComplete = async (seenIds: string[]) => {
-    for (const itemId of seenIds) {
-      await fetch("/api/review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          vocabularyItemId: itemId,
-          selfRating: "good",
-          isCorrect: true,
-          responseType: "flashcard",
-        }),
-      }).catch(() => {});
+  const handleComplete = (seenIds: string[]) => {
+    if (submitting) return;
+    setSubmitting(true);
+
+    // Run review updates asynchronously in parallel without blocking navigation
+    if (seenIds.length > 0) {
+      Promise.allSettled(
+        seenIds.map((itemId) =>
+          fetch("/api/review", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              vocabularyItemId: itemId,
+              selfRating: "good",
+              isCorrect: true,
+              responseType: "flashcard",
+            }),
+          })
+        )
+      ).catch(() => {});
     }
+
+    // Navigate immediately to practice
     router.push(`/lessons/${id}/practice`);
   };
 
@@ -74,7 +86,13 @@ export default function LessonLearnPage() {
 
   return (
     <div className="max-w-2xl mx-auto py-4">
-      <FlashcardSession items={items} accent={accent} onComplete={handleComplete} />
+      <FlashcardSession
+        items={items}
+        accent={accent}
+        onComplete={handleComplete}
+        isSubmitting={submitting}
+        lessonId={id}
+      />
     </div>
   );
 }

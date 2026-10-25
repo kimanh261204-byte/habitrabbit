@@ -1,18 +1,27 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "VocaFlow — Học từ vựng tiếng Anh thông minh",
-    template: "%s | VocaFlow",
+    default: "HabitRabbit — Học từ vựng tiếng Anh thông minh",
+    template: "%s | HabitRabbit",
   },
   description:
-    "Nền tảng học từ vựng tiếng Anh cá nhân hóa bằng AI. Import file của bạn, học flashcard, luyện tập và ôn tập thông minh.",
-  keywords: ["học tiếng Anh", "từ vựng", "flashcard", "spaced repetition", "AI"],
+    "HabitRabbit - Nền tảng rèn luyện thói quen và học từ vựng tiếng Anh cá nhân hóa bằng AI & Spaced Repetition.",
+  keywords: ["HabitRabbit", "học tiếng Anh", "thói quen học tập", "từ vựng", "flashcard", "spaced repetition", "AI"],
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/favicon.png", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+  },
   openGraph: {
-    title: "VocaFlow",
-    description: "Học từ vựng tiếng Anh cá nhân hóa bằng AI",
+    title: "HabitRabbit",
+    description: "Học từ vựng tiếng Anh cá nhân hóa bằng AI cùng HabitRabbit",
     type: "website",
+    images: ["/logo.png"],
   },
 };
 

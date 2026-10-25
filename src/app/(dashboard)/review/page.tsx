@@ -59,43 +59,40 @@ export default function ReviewPage() {
   const currentWord = words[currentIndex];
 
   const handleRate = useCallback(
-    async (rating: SelfRating) => {
-      if (!currentWord || submitting) return;
-      setSubmitting(true);
-
+    (rating: SelfRating) => {
+      if (!currentWord) return;
+      const wordToRate = currentWord;
       const isCorrect = rating !== "again";
 
-      try {
-        await fetch("/api/review", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            vocabularyItemId: currentWord.id,
-            selfRating: rating,
-            isCorrect,
-            responseType: "flashcard",
-            durationMs: 1500,
-          }),
-        });
+      // Instant optimistic transition
+      setSessionStats((prev) => ({
+        ...prev,
+        [rating]: prev[rating] + 1,
+      }));
 
-        setSessionStats((prev) => ({
-          ...prev,
-          [rating]: prev[rating] + 1,
-        }));
-
-        if (currentIndex + 1 < words.length) {
-          setIsFlipped(false);
-          setCurrentIndex((prev) => prev + 1);
-        } else {
-          setCompleted(true);
-        }
-      } catch (err) {
-        console.error("Lỗi khi lưu kết quả ôn tập:", err);
-      } finally {
-        setSubmitting(false);
+      if (currentIndex + 1 < words.length) {
+        setIsFlipped(false);
+        setCurrentIndex((prev) => prev + 1);
+      } else {
+        setCompleted(true);
       }
+
+      // Fire and forget server update
+      fetch("/api/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vocabularyItemId: wordToRate.id,
+          selfRating: rating,
+          isCorrect,
+          responseType: "flashcard",
+          durationMs: 1500,
+        }),
+      }).catch((err) => {
+        console.error("Lỗi khi lưu kết quả ôn tập:", err);
+      });
     },
-    [currentWord, submitting, currentIndex, words.length]
+    [currentWord, currentIndex, words.length]
   );
 
   // Keyboard navigation: Space to flip, 1-4 for ratings
@@ -245,10 +242,7 @@ export default function ReviewPage() {
       >
         {/* Top bar of card */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Badge variant="purple" size="sm">
-              {currentWord.part_of_speech || "từ vựng"}
-            </Badge>
+          <div>
             {isFlipped && (
               <Badge variant="success" size="sm">
                 Mặt sau
@@ -270,11 +264,21 @@ export default function ReviewPage() {
 
         {/* Card Body */}
         <div className="my-auto text-center space-y-3">
+          {currentWord.part_of_speech && (
+            <div className="flex justify-center">
+              <Badge variant="purple" size="md">
+                {currentWord.part_of_speech}
+              </Badge>
+            </div>
+          )}
+
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight">
             {currentWord.word}
           </h2>
           {currentWord.ipa && (
-            <p className="text-indigo-600 font-mono text-base">{currentWord.ipa}</p>
+            <p className="text-indigo-600 font-mono text-base">
+              /{currentWord.ipa.replace(/^\/+|\/+$/g, "")}/
+            </p>
           )}
 
           {/* If front is visible */}

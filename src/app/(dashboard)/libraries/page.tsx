@@ -22,6 +22,7 @@ interface Library {
   id: string;
   name: string;
   description?: string | null;
+  source_file_name?: string | null;
   total_words: number;
   total_lessons: number;
   words_completed: number;
@@ -33,6 +34,7 @@ export default function LibrariesPage() {
   const [libraries, setLibraries] = useState<Library[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [tab, setTab] = useState<"all" | "core" | "custom">("all");
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [newLibName, setNewLibName] = useState("");
   const [newLibDesc, setNewLibDesc] = useState("");
@@ -98,11 +100,23 @@ export default function LibrariesPage() {
     }
   };
 
-  const filtered = libraries.filter(
-    (lib) =>
-      lib.name.toLowerCase().includes(search.toLowerCase()) ||
-      lib.description?.toLowerCase().includes(search.toLowerCase())
-  );
+  const isCore = (lib: Library) =>
+    lib.source_file_name === "default_curriculum.xlsx" || lib.name.startsWith("Khóa ");
+
+  const coreCount = libraries.filter(isCore).length;
+  const customCount = libraries.length - coreCount;
+
+  const filtered = libraries
+    .filter((lib) => {
+      if (tab === "core") return isCore(lib);
+      if (tab === "custom") return !isCore(lib);
+      return true;
+    })
+    .filter(
+      (lib) =>
+        lib.name.toLowerCase().includes(search.toLowerCase()) ||
+        lib.description?.toLowerCase().includes(search.toLowerCase())
+    );
 
   if (loading) {
     return (
@@ -120,7 +134,7 @@ export default function LibrariesPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Thư viện từ vựng</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Quản lý các bộ từ vựng cá nhân, tài liệu học tập theo chủ đề
+            Gồm 6 khóa học Cốt lõi mặc định và các bộ tài liệu tự tải lên bổ sung
           </p>
         </div>
         <div className="flex items-center gap-2.5">
@@ -137,16 +151,55 @@ export default function LibrariesPage() {
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="relative max-w-md">
-        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Tìm kiếm theo tên thư viện..."
-          className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
+      {/* Tabs and Search Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-1.5 p-1 bg-gray-100/80 rounded-xl w-fit">
+          <button
+            type="button"
+            onClick={() => setTab("all")}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+              tab === "all"
+                ? "bg-white text-gray-900 shadow-xs"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            Tất cả ({libraries.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("core")}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+              tab === "core"
+                ? "bg-white text-indigo-700 shadow-xs"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-indigo-600" />
+            Lộ trình Cốt lõi ({coreCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("custom")}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+              tab === "custom"
+                ? "bg-white text-gray-900 shadow-xs"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            Tự tải lên ({customCount})
+          </button>
+        </div>
+
+        <div className="relative max-w-xs w-full">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Tìm kiếm thư viện..."
+            className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
       </div>
 
       {/* Grid of Libraries */}
@@ -156,80 +209,103 @@ export default function LibrariesPage() {
             <BookMarked className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-base font-semibold text-gray-900">Chưa có thư viện nào</h3>
+            <h3 className="text-base font-semibold text-gray-900">
+              {tab === "custom" ? "Chưa có thư viện tự tải nào" : "Không tìm thấy thư viện phù hợp"}
+            </h3>
             <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
-              Bắt đầu bằng cách tải lên file Excel hoặc CSV, hoặc tạo một thư viện trống để thêm từ
-              thủ công.
+              {tab === "custom"
+                ? "Bạn có thể học bộ từ vựng Cốt lõi trước, hoặc tải file Excel/CSV lên để mở rộng vốn từ bất cứ khi nào."
+                : "Thử thay đổi từ khóa tìm kiếm hoặc lọc theo tab khác."}
             </p>
           </div>
-          <div className="flex gap-2 justify-center">
-            <Link href="/libraries/import">
-              <Button size="sm" leftIcon={<Upload className="w-4 h-4" />}>
-                Import từ vựng ngay
-              </Button>
-            </Link>
-            <Button size="sm" variant="secondary" onClick={() => setCreateModalOpen(true)}>
-              Tạo thư viện trống
-            </Button>
-          </div>
+          {tab === "custom" && (
+            <div className="flex gap-2 justify-center">
+              <Link href="/libraries/import">
+                <Button size="sm" leftIcon={<Upload className="w-4 h-4" />}>
+                  Import file Excel/CSV
+                </Button>
+              </Link>
+            </div>
+          )}
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filtered.map((lib) => (
-            <Card
-              key={lib.id}
-              className="p-6 flex flex-col justify-between hover:shadow-md transition-shadow group border-gray-100 hover:border-indigo-100"
-            >
-              <div className="space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                    <BookMarked className="w-5 h-5" />
+          {filtered.map((lib) => {
+            const core = isCore(lib);
+            return (
+              <Card
+                key={lib.id}
+                className="p-6 flex flex-col justify-between hover:shadow-md transition-shadow group border-gray-100 hover:border-indigo-100"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                        <BookMarked className="w-5 h-5" />
+                      </div>
+                      {core ? (
+                        <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                          Cốt lõi mặc định
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                          Tự tải lên
+                        </span>
+                      )}
+                    </div>
+
+                    {!core && (
+                      <button
+                        type="button"
+                        onClick={() => setDeleteId(lib.id)}
+                        className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
+                        title="Xóa thư viện"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setDeleteId(lib.id)}
-                    className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
-                    title="Xóa thư viện"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900 group-hover:text-indigo-600 transition-colors line-clamp-1">
+                      {lib.name}
+                    </h3>
+                    {lib.description && (
+                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">{lib.description}</p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <Badge variant="purple" size="sm">
+                      {lib.total_words} từ vựng
+                    </Badge>
+                    <Badge variant="default" size="sm">
+                      {lib.total_lessons} bài học
+                    </Badge>
+                  </div>
+
+                  <div className="pt-2">
+                    <Progress value={lib.progress_percent} showLabel label="Đã ghi nhớ" />
+                  </div>
                 </div>
 
-                <div>
-                  <h3 className="text-base font-bold text-gray-900 group-hover:text-indigo-600 transition-colors line-clamp-1">
-                    {lib.name}
-                  </h3>
-                  {lib.description && (
-                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">{lib.description}</p>
-                  )}
+                <div className="pt-4 mt-4 border-t border-gray-100 flex items-center justify-between">
+                  <span className="text-xs text-gray-500">
+                    Đã thuộc: <strong className="text-gray-800">{lib.words_completed}</strong> từ
+                  </span>
+                  <Link href={`/libraries/${lib.id}`}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      rightIcon={<ChevronRight className="w-4 h-4" />}
+                    >
+                      Xem chi tiết
+                    </Button>
+                  </Link>
                 </div>
-
-                <div className="flex items-center gap-2 pt-1">
-                  <Badge variant="purple" size="sm">
-                    {lib.total_words} từ vựng
-                  </Badge>
-                  <Badge variant="default" size="sm">
-                    {lib.total_lessons} bài học
-                  </Badge>
-                </div>
-
-                <div className="pt-2">
-                  <Progress value={lib.progress_percent} showLabel label="Đã ghi nhớ" />
-                </div>
-              </div>
-
-              <div className="pt-5 mt-4 border-t border-gray-100 flex items-center justify-between">
-                <span className="text-xs text-gray-400">
-                  {new Date(lib.created_at).toLocaleDateString("vi-VN")}
-                </span>
-                <Link href={`/libraries/${lib.id}`}>
-                  <Button size="sm" rightIcon={<ChevronRight className="w-4 h-4" />}>
-                    Chi tiết & Học
-                  </Button>
-                </Link>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       )}
 

@@ -1,6 +1,6 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { gradeWrittenSentence, checkVietnameseMeaning, isAIConfigured } from "@/lib/ai/provider";
+import { gradeWrittenSentence, checkVietnameseMeaning } from "@/lib/ai/provider";
 import { z } from "zod";
 
 const GradeSchema = z.object({
@@ -9,6 +9,10 @@ const GradeSchema = z.object({
   meaning_vi: z.string(),
   userAnswer: z.string(),
   expectedAnswer: z.string().optional(),
+  part_of_speech: z.string().optional(),
+  example_en: z.string().optional(),
+  example_vi: z.string().optional(),
+  customApiKey: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -17,25 +21,43 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (!isAIConfigured()) {
-      return NextResponse.json({ error: "AI not configured" }, { status: 503 });
-    }
-
     const body = await req.json();
     const parsed = GradeSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
 
-    const { type, word, meaning_vi, userAnswer, expectedAnswer } = parsed.data;
+    const {
+      type,
+      word,
+      meaning_vi,
+      userAnswer,
+      expectedAnswer,
+      part_of_speech,
+      example_en,
+      example_vi,
+      customApiKey,
+    } = parsed.data;
+
+    // Also check header x-ai-api-key
+    const headerKey = req.headers.get("x-ai-api-key");
+    const effectiveKey = customApiKey || headerKey || undefined;
 
     if (type === "sentence_writing") {
-      const result = await gradeWrittenSentence(word, meaning_vi, userAnswer);
+      const result = await gradeWrittenSentence(
+        word,
+        meaning_vi,
+        userAnswer,
+        effectiveKey,
+        part_of_speech,
+        example_en,
+        example_vi
+      );
       return NextResponse.json(result);
     } else {
-      const result = await checkVietnameseMeaning(word, expectedAnswer ?? meaning_vi, userAnswer);
+      const result = await checkVietnameseMeaning(word, expectedAnswer ?? meaning_vi, userAnswer, effectiveKey);
       return NextResponse.json(result);
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error("AI grade error:", err);
-    return NextResponse.json({ error: "AI error" }, { status: 500 });
+    return NextResponse.json({ error: err.message || "AI error" }, { status: 500 });
   }
 }
