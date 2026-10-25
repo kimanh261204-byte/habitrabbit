@@ -83,6 +83,19 @@ export async function seedCoreCurriculumForUser(userId: string) {
       continue; // Skip courses that already exist for this user
     }
 
+    // Double-check in database immediately before creating to prevent race condition between concurrent requests
+    const { data: alreadyExists } = await supabase
+      .from("vocabulary_libraries")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("name", course.name)
+      .maybeSingle();
+
+    if (alreadyExists) {
+      existingNames.add(course.name);
+      continue;
+    }
+
     const rawRows = parsedCourses.get(course.sheetName);
     if (!rawRows || rawRows.length === 0) continue;
 

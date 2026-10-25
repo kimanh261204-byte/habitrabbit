@@ -127,9 +127,15 @@ export default function DashboardPage() {
 
       const lessonsCompleted = completedLessonsCount ?? 0;
 
-      // Sort core libraries 1 -> 6
+      // Sort core libraries 1 -> 6 and deduplicate by name
+      const seenCoreNames = new Set<string>();
       const coreLibraries = libStats
-        .filter((l) => l.isCore)
+        .filter((l) => {
+          if (!l.isCore) return false;
+          if (seenCoreNames.has(l.name)) return false;
+          seenCoreNames.add(l.name);
+          return true;
+        })
         .sort((a, b) => a.name.localeCompare(b.name, "vi", { numeric: true }));
 
       const customLibraries = libStats.filter((l) => !l.isCore);
