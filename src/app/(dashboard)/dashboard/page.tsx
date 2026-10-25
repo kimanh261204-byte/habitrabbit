@@ -306,55 +306,54 @@ export default function DashboardPage() {
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {stats.coreLibraries.map((lib, idx) => (
-                <Card
+                <Link
                   key={lib.id}
-                  className="p-5 flex flex-col justify-between hover:shadow-md transition-all hover:border-indigo-200 group relative overflow-hidden"
+                  href={`/libraries/${lib.id}`}
+                  className="group block h-full focus:outline-none"
                 >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center">
-                          0{idx + 1}
+                  <Card
+                    className="h-full p-5 flex flex-col justify-between hover:shadow-lg transition-all duration-200 hover:border-indigo-300 hover:-translate-y-0.5 relative overflow-hidden cursor-pointer"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center">
+                            0{idx + 1}
+                          </span>
+                          <Badge variant="purple" size="sm">
+                            {lib.total} từ
+                          </Badge>
+                        </div>
+                        <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                          Cốt lõi
                         </span>
-                        <Badge variant="purple" size="sm">
-                          {lib.total} từ
-                        </Badge>
                       </div>
-                      <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
-                        Cốt lõi
+
+                      <div>
+                        <h3 className="font-bold text-gray-900 text-sm group-hover:text-indigo-600 transition-colors line-clamp-1">
+                          {lib.name}
+                        </h3>
+                        {lib.description && (
+                          <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                            {lib.description}
+                          </p>
+                        )}
+                      </div>
+
+                      <Progress value={lib.progress} showLabel label="Tiến độ hoàn thành" />
+                    </div>
+
+                    <div className="pt-4 mt-3 border-t border-gray-100 flex items-center justify-between">
+                      <span className="text-xs text-gray-500">
+                        Đã thuộc: <strong className="text-gray-900">{lib.completed}</strong> /{lib.total}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 text-xs text-indigo-600 group-hover:text-indigo-700 font-semibold group-hover:translate-x-1 transition-transform">
+                        <span>Học ngay</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
                       </span>
                     </div>
-
-                    <div>
-                      <h3 className="font-bold text-gray-900 text-sm group-hover:text-indigo-600 transition-colors line-clamp-1">
-                        {lib.name}
-                      </h3>
-                      {lib.description && (
-                        <p className="text-xs text-gray-500 mt-1 line-clamp-2">
-                          {lib.description}
-                        </p>
-                      )}
-                    </div>
-
-                    <Progress value={lib.progress} showLabel label="Tiến độ hoàn thành" />
-                  </div>
-
-                  <div className="pt-4 mt-3 border-t border-gray-100 flex items-center justify-between">
-                    <span className="text-xs text-gray-500">
-                      Đã thuộc: <strong className="text-gray-900">{lib.completed}</strong> /{lib.total}
-                    </span>
-                    <Link href={`/libraries/${lib.id}`}>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 font-semibold"
-                        rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-                      >
-                        Học ngay
-                      </Button>
-                    </Link>
-                  </div>
-                </Card>
+                  </Card>
+                </Link>
               ))}
             </div>
           </div>
@@ -390,33 +389,39 @@ export default function DashboardPage() {
         {stats?.customLibraries && stats.customLibraries.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {stats.customLibraries.map((lib) => (
-              <Card
+              <Link
                 key={lib.id}
-                className="p-5 flex flex-col justify-between hover:shadow-md transition-shadow"
+                href={`/libraries/${lib.id}`}
+                className="group block h-full focus:outline-none"
               >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-gray-900 text-sm truncate">{lib.name}</h3>
-                    <Badge variant="info" size="sm">
-                      {lib.total} từ
-                    </Badge>
+                <Card
+                  className="h-full p-5 flex flex-col justify-between hover:shadow-lg transition-all duration-200 hover:border-indigo-300 hover:-translate-y-0.5 cursor-pointer"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-gray-900 text-sm truncate group-hover:text-indigo-600 transition-colors">
+                        {lib.name}
+                      </h3>
+                      <Badge variant="info" size="sm">
+                        {lib.total} từ
+                      </Badge>
+                    </div>
+                    {lib.description && (
+                      <p className="text-xs text-gray-500 line-clamp-1">{lib.description}</p>
+                    )}
+                    <Progress value={lib.progress} showLabel label="Tiến độ" />
                   </div>
-                  {lib.description && (
-                    <p className="text-xs text-gray-500 line-clamp-1">{lib.description}</p>
-                  )}
-                  <Progress value={lib.progress} showLabel label="Tiến độ" />
-                </div>
-                <div className="pt-4 mt-2 border-t border-gray-100 flex items-center justify-between">
-                  <span className="text-xs text-gray-500">
-                    Đã thuộc: <strong className="text-gray-800">{lib.completed}</strong>
-                  </span>
-                  <Link href={`/libraries/${lib.id}`}>
-                    <Button variant="ghost" size="sm" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
-                      Mở học
-                    </Button>
-                  </Link>
-                </div>
-              </Card>
+                  <div className="pt-4 mt-2 border-t border-gray-100 flex items-center justify-between">
+                    <span className="text-xs text-gray-500">
+                      Đã thuộc: <strong className="text-gray-800">{lib.completed}</strong>
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-xs text-indigo-600 group-hover:text-indigo-700 font-semibold group-hover:translate-x-1 transition-transform">
+                      <span>Mở học</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+                </Card>
+              </Link>
             ))}
           </div>
         ) : (
