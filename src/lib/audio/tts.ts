@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Audio Module - Text-to-Speech
  * Uses Web Speech API as primary, with server-side TTS adapter as fallback
  */
@@ -44,7 +44,15 @@ export function speakWord(
     setVoice();
 
     utterance.onend = () => resolve();
-    utterance.onerror = (e) => reject(new Error(e.error));
+    utterance.onerror = (e) => {
+      // 'interrupted' or 'canceled' occurs naturally when a previous utterance is cut off or button clicked rapidly
+      if (e.error === "interrupted" || e.error === "canceled") {
+        resolve();
+      } else {
+        console.warn("TTS notice:", e.error);
+        resolve();
+      }
+    };
 
     window.speechSynthesis.speak(utterance);
   });

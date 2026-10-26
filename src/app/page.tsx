@@ -15,6 +15,7 @@ import {
   ArrowRight,
   ShieldCheck,
   FileSpreadsheet,
+  Gamepad2,
 } from "lucide-react";
 import type { Metadata } from "next";
 
@@ -60,6 +61,7 @@ const highlights = [
   "Hệ thống ôn tập ngắt quãng FSRS thay thế Anki truyền thống",
   "AI chấm câu viết tự do và giải thích bằng tiếng Việt",
   "Theo dõi độ lưu giữ trí nhớ và chuỗi học tập Streak hằng ngày",
+  "Hệ thống Mini-game & Thỏ đồng hành tùy chọn giúp việc ôn từ luôn thư giãn, tràn đầy cảm hứng",
 ];
 
 export default function LandingPage() {
@@ -193,6 +195,50 @@ export default function LandingPage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      </section>
+
+      {/* Optional Gamification Showcase */}
+      <section className="py-16 px-4 bg-gradient-to-b from-orange-50/40 via-amber-50/20 to-white border-y border-orange-100/60">
+        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
+          <div className="space-y-4 max-w-lg text-center md:text-left">
+            <div className="inline-flex items-center gap-2 bg-orange-100/80 text-orange-700 text-xs font-bold px-3 py-1 rounded-full">
+              <Gamepad2 className="w-3.5 h-3.5" />
+              <span>Tùy chọn V2 — Gamification</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
+              Ôn từ không còn nhàm chán cùng Bé Thỏ HabitRabbit
+            </h2>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              Trải nghiệm các mini-game Nối từ, Chọn từ khuyết và Lật thẻ nhớ. Tích lũy XP, nhận cà rốt thưởng để nuôi nấng bé Thỏ — Hoàn toàn tùy chọn, có thể chơi hoặc bỏ qua bất cứ lúc nào!
+            </p>
+            <div className="pt-2 flex flex-wrap gap-2 justify-center md:justify-start">
+              <span className="text-xs font-semibold bg-white border border-orange-200 text-gray-700 px-3 py-1.5 rounded-xl shadow-xs">
+                🧩 Nối từ (Word Match)
+              </span>
+              <span className="text-xs font-semibold bg-white border border-orange-200 text-gray-700 px-3 py-1.5 rounded-xl shadow-xs">
+                🎯 Từ còn thiếu (Missing Word)
+              </span>
+              <span className="text-xs font-semibold bg-white border border-orange-200 text-gray-700 px-3 py-1.5 rounded-xl shadow-xs">
+                🃏 Lật thẻ (Memory Flip)
+              </span>
+            </div>
+          </div>
+          <div className="w-full md:w-auto flex justify-center">
+            <div className="relative w-48 h-48 sm:w-56 sm:h-56 rounded-3xl bg-gradient-to-tr from-amber-100 via-orange-50 to-pink-100 border border-orange-200/60 shadow-lg flex items-center justify-center p-6">
+              <Image
+                src="/rabbit-mascot.png"
+                alt="HabitRabbit Mascot"
+                width={180}
+                height={180}
+                className="object-contain drop-shadow-md hover:scale-105 transition-transform"
+                unoptimized
+              />
+              <div className="absolute -bottom-3 bg-white border border-orange-200 text-orange-600 text-xs font-bold px-3 py-1 rounded-full shadow-xs flex items-center gap-1.5">
+                <span>🥕 Bé Thỏ đồng hành</span>
+              </div>
+            </div>
           </div>
         </div>
       </section>

@@ -106,6 +106,24 @@ export default function LessonCompletePage() {
         </div>
       </Card>
 
+      {/* Optional Mini-Game Invitation */}
+      <Link href="/game" className="block text-left">
+        <Card className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border-orange-200/60 flex items-center justify-between gap-3 hover:border-orange-300 transition-colors cursor-pointer group">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🎮</span>
+            <div>
+              <p className="text-xs font-bold text-gray-900 group-hover:text-orange-600 transition-colors">
+                Luyện tập vui với Mini-game
+              </p>
+              <p className="text-[11px] text-gray-500">
+                Thư giãn nối từ & nhận thêm cà rốt thưởng cho Bé Thỏ
+              </p>
+            </div>
+          </div>
+          <ArrowRight className="w-4 h-4 text-orange-500 group-hover:translate-x-1 transition-transform shrink-0" />
+        </Card>
+      </Link>
+
       <div className="flex flex-col gap-3 pt-2">
         {nextLesson ? (
           <Link href={`/lessons/${nextLesson.id}/learn`}>

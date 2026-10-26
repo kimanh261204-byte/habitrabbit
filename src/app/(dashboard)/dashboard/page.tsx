@@ -268,6 +268,35 @@ export default function DashboardPage() {
         </Card>
       </div>
 
+      {/* Optional Gamification Invitation Banner */}
+      <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-indigo-50 border border-orange-200/70 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-white border border-orange-200/80 shadow-xs flex items-center justify-center text-2xl shrink-0">
+            🐰
+          </div>
+          <div className="space-y-0.5 text-center sm:text-left">
+            <div className="flex items-center justify-center sm:justify-start gap-2">
+              <h3 className="font-extrabold text-gray-900 text-sm sm:text-base">
+                Thế giới Trò chơi HabitRabbit
+              </h3>
+              <Badge variant="warning" size="sm">V2 Game hóa</Badge>
+            </div>
+            <p className="text-xs text-gray-500 max-w-lg">
+              Thư giãn với các mini-game Nối từ, Lật thẻ và Điền từ khuyết để tích lũy XP nuôi bé Thỏ đồng hành!
+            </p>
+          </div>
+        </div>
+        <Link href="/game" className="shrink-0 w-full sm:w-auto">
+          <Button
+            size="sm"
+            className="w-full sm:w-auto bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold border-transparent shadow-xs text-xs"
+            rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+          >
+            Vào chơi ngay 🎮
+          </Button>
+        </Link>
+      </div>
+
       {/* Core Curriculum Section */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">

@@ -176,6 +176,16 @@ export default function ReviewPage() {
             </Button>
           </Link>
         </div>
+
+        <div className="pt-4 mt-6 border-t border-gray-100 flex items-center justify-center">
+          <Link
+            href="/game"
+            className="inline-flex items-center gap-2 text-xs font-bold text-orange-600 hover:text-orange-700 bg-orange-50/80 hover:bg-orange-100 px-4 py-2 rounded-xl transition-colors"
+          >
+            <span>🎮 Thư giãn & củng cố từ vựng cùng Bé Thỏ qua Mini-game</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
       </div>
     );
   }
@@ -196,8 +206,17 @@ export default function ReviewPage() {
           <Link href="/libraries">
             <Button leftIcon={<BookOpen className="w-4 h-4" />}>Học bài mới trong Thư viện</Button>
           </Link>
+          <Link href="/game">
+            <Button
+              variant="secondary"
+              className="border-orange-200 bg-orange-50/60 text-orange-700 hover:bg-orange-100/70"
+              leftIcon={<span>🎮</span>}
+            >
+              Chơi Mini-game
+            </Button>
+          </Link>
           <Link href="/dashboard">
-            <Button variant="secondary">Về Trang chủ</Button>
+            <Button variant="ghost">Về Trang chủ</Button>
           </Link>
         </div>
       </div>

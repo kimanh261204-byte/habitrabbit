@@ -263,3 +263,7 @@ export interface LibrarySummary {
   words_completed: number;
   progress_percent: number;
 }
+
+// ---- Gamification V2 types ----
+export * from "./game";
+

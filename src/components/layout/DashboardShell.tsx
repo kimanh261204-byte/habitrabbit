@@ -15,6 +15,7 @@ import {
   X,
   BookMarked,
   Zap,
+  Gamepad2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ const navItems = [
   { href: "/libraries", icon: BookMarked, label: "Thư viện từ vựng" },
   { href: "/lessons", icon: GraduationCap, label: "Bài học" },
   { href: "/review", icon: RotateCcw, label: "Ôn tập SRS" },
+  { href: "/game", icon: Gamepad2, label: "Khu vui chơi (Game)" },
   { href: "/progress", icon: TrendingUp, label: "Tiến độ & Trí nhớ" },
   { href: "/settings", icon: Settings, label: "Cài đặt" },
 ];
