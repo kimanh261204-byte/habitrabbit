@@ -157,6 +157,214 @@ export function generateRichNativeSentence(word: string, pos?: string | null): s
   return `Native English speakers frequently use "${lower}" in daily conversations.`;
 }
 
+export function levenshteinDistance(a: string, b: string): number {
+  const an = a ? a.length : 0;
+  const bn = b ? b.length : 0;
+  if (an === 0) return bn;
+  if (bn === 0) return an;
+  const matrix = Array.from({ length: bn + 1 }, () => new Array(an + 1).fill(0));
+  for (let i = 0; i <= an; i++) matrix[0][i] = i;
+  for (let j = 0; j <= bn; j++) matrix[j][0] = j;
+  for (let j = 1; j <= bn; j++) {
+    for (let i = 1; i <= an; i++) {
+      if (a[i - 1] === b[j - 1]) {
+        matrix[j][i] = matrix[j - 1][i - 1];
+      } else {
+        matrix[j][i] = Math.min(
+          matrix[j - 1][i - 1] + 1,
+          matrix[j][i - 1] + 1,
+          matrix[j - 1][i] + 1
+        );
+      }
+    }
+  }
+  return matrix[bn][an];
+}
+
+/**
+ * Repairs a student's erroneous English sentence directly while preserving their original words and intent.
+ */
+export function repairStudentSentenceLocally(
+  userSentence: string,
+  targetWord: string,
+  partOfSpeech?: string | null
+): {
+  repairedSentence: string;
+  grammarIssues: string[];
+  detectedTypo: boolean;
+} {
+  let s = userSentence.trim();
+  const lowerWord = targetWord.trim().toLowerCase();
+  const issues: string[] = [];
+  let detectedTypo = false;
+
+  // 1. Detect and fix typo of the target word
+  const tokens = s.split(/\s+/);
+  for (let i = 0; i < tokens.length; i++) {
+    const cleanT = tokens[i].replace(/[^\w]/g, "").toLowerCase();
+    if (
+      cleanT !== lowerWord &&
+      cleanT.length >= 3 &&
+      Math.abs(cleanT.length - lowerWord.length) <= 2 &&
+      levenshteinDistance(cleanT, lowerWord) <= 2
+    ) {
+      detectedTypo = true;
+      issues.push(`Lỗi chính tả từ vựng: Bạn viết gõ nhầm "${tokens[i]}" -> đã sửa thành từ mục tiêu "${lowerWord}".`);
+      const punc = tokens[i].replace(/[\w]/g, "");
+      tokens[i] = lowerWord + punc;
+      break;
+    }
+  }
+  s = tokens.join(" ");
+
+  // 2. If target word still not present, integrate it into the sentence
+  if (!checkWordPresence(s.toLowerCase(), lowerWord)) {
+    if (lowerWord === "since") {
+      if (/\bin\s+(19\d\d|20\d\d)\b/i.test(s)) {
+        s = s.replace(/\bin\s+(19\d\d|20\d\d)\b/i, "since $1");
+        issues.push(`Bổ sung từ vựng mục tiêu: Đổi "in [năm]" thành "since [năm]".`);
+      } else {
+        s = `${s} since 1997`;
+        issues.push(`Bổ sung từ vựng mục tiêu: Đã thêm "since 1997" vào câu.`);
+      }
+    } else {
+      issues.push(`Bổ sung từ vựng mục tiêu: Cần đưa từ "${targetWord}" vào câu.`);
+      s = `${s} (${targetWord})`;
+    }
+  }
+
+  // 3. Fix pronoun "i" -> "I"
+  if (/\bi\b/.test(s)) {
+    s = s.replace(/\bi\b/g, "I");
+    issues.push('Lỗi viết hoa: Đại từ nhân xưng "I" trong tiếng Anh luôn luôn phải viết hoa.');
+  }
+  if (/\bi'm\b/i.test(s)) s = s.replace(/\bi'm\b/gi, "I'm");
+  if (/\bi've\b/i.test(s)) s = s.replace(/\bi've\b/gi, "I've");
+  if (/\bi'll\b/i.test(s)) s = s.replace(/\bi'll\b/gi, "I'll");
+  if (/\bi'd\b/i.test(s)) s = s.replace(/\bi'd\b/gi, "I'd");
+
+  // 4. Fix proper nouns (cities, countries, languages)
+  const properNouns: Record<string, string> = {
+    hanoi: "Hanoi",
+    "ha noi": "Hanoi",
+    saigon: "Saigon",
+    "sai gon": "Saigon",
+    vietnam: "Vietnam",
+    "viet nam": "Vietnam",
+    danang: "Da Nang",
+    "da nang": "Da Nang",
+    hue: "Hue",
+    english: "English",
+    vietnamese: "Vietnamese",
+    french: "French",
+    chinese: "Chinese",
+    japanese: "Japanese",
+    korean: "Korean",
+    america: "America",
+    london: "London",
+    paris: "Paris",
+    tokyo: "Tokyo",
+  };
+  for (const [lower, proper] of Object.entries(properNouns)) {
+    const reg = new RegExp(`\\b${lower}\\b`, "i");
+    if (reg.test(s) && !s.includes(proper)) {
+      s = s.replace(reg, proper);
+      issues.push(`Lỗi viết hoa: Tên riêng địa danh/ngôn ngữ "${lower}" phải viết hoa thành "${proper}".`);
+    }
+  }
+
+  // 5. Tense correction with "since"
+  if (/\bsince\b/i.test(s)) {
+    const liveMatch = s.match(/\b(I|you|we|they)\s+(live|work|study|stay|wait|learn)\s+([\s\S]*?)\bsince\b/i);
+    if (liveMatch) {
+      const subj = liveMatch[1];
+      const verb = liveMatch[2].toLowerCase();
+      const edVerb = verb.endsWith("e") ? `${verb}d` : verb.endsWith("y") ? `${verb.slice(0, -1)}ied` : `${verb}ed`;
+      s = s.replace(
+        new RegExp(`\\b${subj}\\s+${verb}\\b`, "i"),
+        `${subj} have ${edVerb}`
+      );
+      issues.push(`Lỗi thì động từ: Khi có mốc thời gian "since", hành động bắt đầu từ quá khứ và vẫn tiếp diễn ở hiện tại cần dùng thì Hiện tại hoàn thành ("${subj} have ${edVerb}") thay vì hiện tại đơn ("${verb}").`);
+    }
+
+    const liveMatchSingular = s.match(/\b(he|she|it)\s+(live|lives|work|works|study|studies|stay|stays)\s+([\s\S]*?)\bsince\b/i);
+    if (liveMatchSingular) {
+      const subj = liveMatchSingular[1];
+      const v = liveMatchSingular[2].toLowerCase().replace(/s$/, "");
+      const edVerb = v.endsWith("e") ? `${v}d` : `${v}ed`;
+      s = s.replace(
+        new RegExp(`\\b${subj}\\s+${liveMatchSingular[2]}\\b`, "i"),
+        `${subj} has ${edVerb}`
+      );
+      issues.push(`Lỗi thì động từ: Với chủ ngữ số ít đi với "since", cần dùng thì Hiện tại hoàn thành ("${subj} has ${edVerb}").`);
+    }
+
+    if (/\b(I|you|we|they)\s+(am|are|was|were)\s+([\s\S]*?)\bsince\b/i.test(s)) {
+      s = s.replace(/\b(I|you|we|they)\s+(am|are|was|were)\b/i, "$1 have been");
+      issues.push('Lỗi thì động từ: Chuyển to-be thành "have been" khi đi cùng "since".');
+    }
+  }
+
+  // 6. Fix bare singular countable noun at beginning
+  const bareNounMatch = s.match(/^(actor|student|teacher|doctor|driver|child|cat|dog|car|book|room|hospital|school)\b/i);
+  if (bareNounMatch) {
+    const n = bareNounMatch[1];
+    const art = /^[aeiou]/i.test(n) ? "An" : "A";
+    s = `${art} ${s.charAt(0).toLowerCase() + s.slice(1)}`;
+    issues.push(`Lỗi thiếu mạo từ: Danh từ đếm được số ít "${n}" cần mạo từ "${art}" đứng trước.`);
+  }
+
+  // 7. Fix adverb misused as adjective (e.g. "this is a job easily", "is easily")
+  if (/\b(is|am|are)\s+a\s+([a-z]+)\s+([a-z]+)ly\b/i.test(s)) {
+    s = s.replace(/\b(is|am|are)\s+a\s+([a-z]+)\s+([a-z]+)ly\b/i, (m, be, noun, adv) => {
+      const adj = adv.replace(/ily$/, "y").replace(/ly$/, "");
+      const aOrAn = /^[aeiou]/i.test(adj) ? "an" : "a";
+      return `${be} ${aOrAn} ${adj} ${noun}`;
+    });
+    issues.push("Lỗi từ loại: Chuyển trạng từ đứng sau danh từ thành tính từ đứng trước danh từ.");
+  } else if (/\b(is|am|are)\s+([a-z]+)ly\b/i.test(s)) {
+    s = s.replace(/\b(is|am|are)\s+([a-z]+)ly\b/i, (m, be, adv) => {
+      const adj = adv.replace(/ily$/, "y").replace(/ly$/, "");
+      return `${be} ${adj}`;
+    });
+    issues.push("Lỗi từ loại: Sau động từ to-be cần dùng tính từ thay vì trạng từ.");
+  }
+
+  // 8. Fix missing "to" in modal/verb infinitives ("want be" -> "want to be", "need go" -> "need to go")
+  if (/\b(want|need|like|hope|decide)\s+(be|go|have|do|make|see|help|learn)\b/i.test(s)) {
+    s = s.replace(/\b(want|need|like|hope|decide)\s+(be|go|have|do|make|see|help|learn)\b/gi, "$1 to $2");
+    issues.push('Lỗi ngữ pháp: Sau các động từ như want/need/hope cần có "to" trước động từ nguyên mẫu.');
+  }
+
+  // 9. Subject-verb agreement (e.g. "he live" -> "he lives", "she go" -> "she goes")
+  if (!/\bsince\b/i.test(s)) {
+    if (/\b(he|she|it)\s+live\b/i.test(s)) {
+      s = s.replace(/\b(he|she|it)\s+live\b/gi, "$1 lives");
+      issues.push('Lỗi hòa hợp chủ-vị: Chủ ngữ số ít (he/she/it) động từ chia thêm "s" ("lives").');
+    }
+    if (/\b(he|she|it)\s+go\b/i.test(s)) {
+      s = s.replace(/\b(he|she|it)\s+go\b/gi, "$1 goes");
+      issues.push('Lỗi hòa hợp chủ-vị: Động từ "go" chia với ngôi thứ 3 số ít thành "goes".');
+    }
+    if (/\b(he|she|it)\s+work\b/i.test(s)) {
+      s = s.replace(/\b(he|she|it)\s+work\b/gi, "$1 works");
+      issues.push('Lỗi hòa hợp chủ-vị: Động từ "work" chia với ngôi thứ 3 số ít thành "works".');
+    }
+  }
+
+  // 10. Capitalize first letter and ensure ending punctuation
+  s = s.charAt(0).toUpperCase() + s.slice(1);
+  if (!/[.!?]$/.test(s)) {
+    s += ".";
+  }
+
+  return {
+    repairedSentence: s,
+    grammarIssues: issues,
+    detectedTypo,
+  };
+}
+
 /**
  * Intelligent Local English Companion Engine (Thỏ HabitRabbit)
  * Evaluates grammar, sentence completeness, part-of-speech accuracy, and real-world semantic logic.
@@ -173,87 +381,47 @@ export function evaluateEnglishSentenceLocally(
   const lowerSentence = trimmed.toLowerCase();
   const lowerWord = word.trim().toLowerCase();
 
+  const fallbackNativeExample =
+    example_en || generateRichNativeSentence(word, part_of_speech);
+
   const tokens = lowerSentence
     .replace(/[^\w\s']/g, " ")
     .split(/\s+/)
     .filter(Boolean);
 
-  // 1. Strict Target Word Check (No partial substring matching inside words like "actor" or "sact")
-  const hasWord = checkWordPresence(lowerSentence, lowerWord);
-
-  const fallbackNativeExample =
-    example_en || generateRichNativeSentence(word, part_of_speech);
-
-  if (!hasWord) {
-    const relatedTokens = tokens.filter((t) => t.includes(lowerWord) && t !== lowerWord);
-    const relatedNote = relatedTokens.length > 0
-      ? ` Lưu ý: Từ "${relatedTokens.join(", ")}" không phải là từ vựng mục tiêu "${word}". Bạn hãy sử dụng chính xác từ "${word}" nhé!`
-      : "";
-
-    return {
-      original_sentence: trimmed,
-      corrected_sentence: fallbackNativeExample,
-      suggested_native_sentence: fallbackNativeExample,
-      grammar_feedback: `❌ Bạn chưa sử dụng đúng từ vựng mục tiêu "${word}" (${meaning_vi}) trong câu trả lời.${relatedNote}`,
-      vocabulary_usage_feedback: `Thiếu từ vựng bắt buộc: "${word}".`,
-      naturalness_feedback: "Câu chưa đáp ứng yêu cầu của bài tập đặt câu.",
-      vietnamese_translation: example_vi || "",
-      vietnamese_explanation: `Thỏ nhận xét: Bài tập yêu cầu bạn đặt câu có chứa từ "${word}" (${meaning_vi}). Hãy thử viết lại một câu hoàn chỉnh có chứa từ này nhé!${relatedNote}`,
-      target_word_used_correctly: false,
-      suggested_next_step: `Xem câu gợi ý chuẩn từ Thỏ: "${fallbackNativeExample}"`,
-      score: 15,
-    };
-  }
-
-  // 2. Check sentence length (Fragments: 1-2 words)
+  // 1. Fragment check (1-2 words)
   if (tokens.length <= 2) {
     const isSingleWord = tokens.length === 1;
-    const corrected = example_en || generateRichNativeSentence(word, part_of_speech);
+    const repaired = isSingleWord
+      ? (lowerWord === "since" ? "I have lived here since 1997." : `This is an example of ${trimmed}.`)
+      : `It is ${trimmed}.`;
     return {
       original_sentence: trimmed,
-      corrected_sentence: isSingleWord ? `This is an example of ${trimmed}.` : `It is ${trimmed}.`,
+      corrected_sentence: repaired,
       suggested_native_sentence: fallbackNativeExample,
       grammar_feedback: isSingleWord
-        ? `Lỗi câu cụt: Bạn chỉ mới viết một từ đơn lẻ "${trimmed}", chưa phải là một câu hoàn chỉnh.`
-        : `Lỗi cụm từ chưa hoàn chỉnh: "${trimmed}" chỉ là một cụm từ, thiếu cả chủ ngữ và vị ngữ.`,
+        ? `❌ Lỗi câu cụt: Bạn chỉ mới viết một từ đơn lẻ "${trimmed}", chưa phải là một câu hoàn chỉnh.`
+        : `❌ Lỗi cụm từ chưa hoàn chỉnh: "${trimmed}" chỉ là một cụm từ, thiếu cả chủ ngữ và vị ngữ.`,
       vocabulary_usage_feedback: `Từ "${word}" cần được đặt trong một câu hoàn chỉnh có chủ ngữ và vị ngữ.`,
       naturalness_feedback: "Trong tiếng Anh, một câu hoàn chỉnh bắt buộc phải có Chủ ngữ (Subject) và Động từ (Verb).",
       vietnamese_translation: example_vi || (isSingleWord ? meaning_vi : ""),
-      vietnamese_explanation: `Thỏ nhắc bạn: Hãy tạo thành một câu có chủ ngữ và động từ đầy đủ, ví dụ: "${corrected}"`,
+      vietnamese_explanation: `Thỏ nhắc bạn: Hãy tạo thành một câu có chủ ngữ và động từ đầy đủ, ví dụ: "${repaired}"`,
       target_word_used_correctly: false,
-      suggested_next_step: `Tham khảo câu mẫu từ Thỏ: "${corrected}"`,
+      suggested_next_step: `Tham khảo câu sửa từ Thỏ: "${repaired}"`,
       score: 25,
     };
   }
 
-  // 3. Check for bare singular countable nouns at the start (Missing Article: e.g. "actor is...", "car is...")
-  const BARE_SINGULAR_NOUNS = new Set([
-    "actor", "student", "teacher", "doctor", "driver", "singer", "player", "worker", "child",
-    "boy", "girl", "man", "woman", "cat", "dog", "car", "book", "computer", "phone", "pen",
-    "desk", "room", "house", "building", "hospital", "school", "airport"
-  ]);
-  if (tokens.length >= 2 && BARE_SINGULAR_NOUNS.has(tokens[0])) {
-    const noun = tokens[0];
-    const article = /^[aeiou]/i.test(noun) ? "An" : "A";
-    const fixed = `${article} ${trimmed.charAt(0).toLowerCase() + trimmed.slice(1)}`;
-    const corrected = `${fixed}${/[.!?]$/.test(fixed) ? "" : "."}`;
-    return {
-      original_sentence: trimmed,
-      corrected_sentence: corrected,
-      suggested_native_sentence: fallbackNativeExample,
-      grammar_feedback: `❌ Thiếu mạo từ (Missing Article): Danh từ đếm được số ít "${noun}" không thể đứng đơn độc làm chủ ngữ. Bạn cần thêm mạo từ xác định hoặc không xác định trước danh từ: "${article} ${noun}..." hoặc "The ${noun}...".`,
-      vocabulary_usage_feedback: `Cần bổ sung mạo từ trước danh từ "${noun}".`,
-      naturalness_feedback: `Người bản xứ không nói "${trimmed}". Cần nói: "${article} ${noun}..." hoặc "The ${noun}...".`,
-      vietnamese_translation: example_vi || "",
-      vietnamese_explanation: `Thỏ hướng dẫn bạn: Trong tiếng Anh, danh từ đếm được số ít bắt buộc phải có mạo từ (a/an/the) hoặc từ sở hữu (my/your) đứng trước, ví dụ: "${article} ${noun}" hoặc "The ${noun}".`,
-      target_word_used_correctly: false,
-      suggested_next_step: `Thêm mạo từ vào trước danh từ: "${article} ${trimmed}"`,
-      score: 45,
-    };
-  }
+  // 2. Perform intelligent repair on student's sentence
+  const { repairedSentence, grammarIssues, detectedTypo } = repairStudentSentenceLocally(
+    trimmed,
+    word,
+    part_of_speech
+  );
 
-  // 4. SEMANTIC LOGIC CHECK (Tính thực tế & Ngữ cảnh hợp lý)
-  // Animate actions cannot be performed by inanimate static objects or buildings
+  const hasWord = checkWordPresence(lowerSentence, lowerWord) || detectedTypo;
+
+  // 3. Semantic logic check for absurd sentences (e.g. static buildings flying)
   const INANIMATE_OBJECTS = new Set([
     "airport", "airports", "station", "stations", "school", "schools", "hospital", "hospitals",
     "house", "houses", "building", "buildings", "room", "rooms", "road", "roads", "street", "streets",
@@ -262,255 +430,68 @@ export function evaluateEnglishSentenceLocally(
     "park", "parks", "lake", "river", "office", "offices", "bank", "banks", "hotel", "hotels",
     "city", "cities", "car", "cars", "phone", "book", "books", "pen", "pens"
   ]);
-
   const hasInanimateSubject = tokens.find((t) => INANIMATE_OBJECTS.has(t));
-
-  // Check 4A: Flying actions
   if (
-    lowerWord === "flying" ||
-    lowerWord === "fly" ||
-    lowerWord === "flies" ||
-    lowerSentence.includes("is flying") ||
-    lowerSentence.includes("are flying")
+    (lowerWord === "flying" || lowerWord === "fly" || lowerSentence.includes("is flying")) &&
+    hasInanimateSubject
   ) {
-    if (hasInanimateSubject) {
-      const betterExample = example_en || "The airplane is flying high in the sky.";
-      return {
-        original_sentence: trimmed,
-        corrected_sentence: betterExample,
-        suggested_native_sentence: fallbackNativeExample,
-        grammar_feedback: `❌ Lỗi phi thực tế về ngữ nghĩa (Semantic Inconsistency): "${hasInanimateSubject}" (công trình/vật thể mặt đất) không thể tự thực hiện hành động "${word}" (bay) được. Câu của bạn đúng cấu trúc ngữ pháp nhưng hoàn toàn vô nghĩa và vô lý trong thực tế.`,
-        vocabulary_usage_feedback: `Từ "${word}" cần đi với chủ ngữ có khả năng bay như máy bay (airplane/plane), chim chóc (bird), hoặc phi công (pilot).`,
-        naturalness_feedback: `Người bản xứ không bao giờ nói "${trimmed}". Cần nói: "${betterExample}"`,
-        vietnamese_translation: example_vi || "Chiếc máy bay đang bay trên bầu trời.",
-        vietnamese_explanation: `Thỏ nhận xét:
-Một câu tiếng Anh hay không chỉ cần đúng ngữ pháp mà phải CÓ Ý NGHĨA trong đời sống thực. "${hasInanimateSubject}" là công trình cố định trên mặt đất, chỉ có máy bay (airplane) hoặc chim mới có thể bay được!
-👉 Câu chuẩn: "${betterExample}"`,
-        target_word_used_correctly: false,
-        suggested_next_step: `Đổi chủ ngữ từ "${hasInanimateSubject}" thành "airplane" hoặc "bird": "${betterExample}"`,
-        score: 35,
-      };
-    }
-  }
-
-  // Check 4B: Living biological actions (sleeping, eating, drinking, crying) performed by inanimate objects
-  const BIOLOGICAL_ACTIONS = new Set([
-    "sleeping", "sleeps", "slept", "sleep",
-    "eating", "eats", "ate", "eat",
-    "drinking", "drinks", "drank", "drink",
-    "crying", "cries", "cried", "cry",
-    "laughing", "laughs", "laughed", "laugh"
-  ]);
-  const hasBioAction = tokens.find((t) => BIOLOGICAL_ACTIONS.has(t));
-  if (hasInanimateSubject && hasBioAction) {
-    const betterExample = example_en || `The little child is ${hasBioAction} peacefully in the room.`;
+    const realisticSentence = "The airplane is flying smoothly above the clouds.";
     return {
       original_sentence: trimmed,
-      corrected_sentence: betterExample,
+      corrected_sentence: realisticSentence,
       suggested_native_sentence: fallbackNativeExample,
-      grammar_feedback: `❌ Lỗi phi lý về ngữ nghĩa: "${hasInanimateSubject}" là vật vô tri vô giác, không thể tự thực hiện hành vi sinh học "${hasBioAction}" được.`,
-      vocabulary_usage_feedback: `Từ "${word}" cần đi với chủ ngữ là con người hoặc sinh vật sống.`,
-      naturalness_feedback: `Người bản xứ không bao giờ dùng câu này vì nó trái ngược với thực tế khách quan.`,
-      vietnamese_translation: example_vi || "",
-      vietnamese_explanation: `Thỏ lưu ý: Bạn cần chọn chủ ngữ hợp lý (người, động vật) để thực hiện hành động "${hasBioAction}".`,
+      grammar_feedback: `❌ Lỗi phi thực tế về ngữ nghĩa: "${hasInanimateSubject}" là công trình/vật thể mặt đất, không thể tự bay được.`,
+      vocabulary_usage_feedback: `Từ "${word}" cần đi với chủ ngữ có thể bay như máy bay (airplane) hoặc chim (bird).`,
+      naturalness_feedback: `Cần nói: "${realisticSentence}"`,
+      vietnamese_translation: "Chiếc máy bay đang bay trên bầu trời.",
+      vietnamese_explanation: `Thỏ lưu ý: Một câu tiếng Anh cần có ý nghĩa thực tế. Đổi chủ ngữ "${hasInanimateSubject}" thành "airplane" bạn nhé!`,
       target_word_used_correctly: false,
-      suggested_next_step: `Sửa chủ ngữ thành người hoặc động vật: "${betterExample}"`,
-      score: 30,
+      suggested_next_step: `Xem câu gợi ý: "${realisticSentence}"`,
+      score: 35,
     };
   }
 
-  // 5. PART-OF-SPEECH ACCURACY (Nhầm lẫn Tính từ vs Trạng từ)
-  // Example: "this is a job easily", "a car quickly", "this job is easily"
-  const isAdverb =
-    part_of_speech?.toLowerCase().includes("adv") ||
-    lowerWord.endsWith("ly") ||
-    ["easily", "quickly", "slowly", "badly", "happily", "well", "hard"].includes(lowerWord);
-
-  if (isAdverb) {
-    // Check if adverb follows "is a/an [noun] [adverb]" or precedes a noun directly
-    const patternNounAdverb = /\b(a|an|the)\s+([a-z]+)\s+([a-z]+ly)\b/i;
-    const match = trimmed.match(patternNounAdverb);
-
-    if (match || lowerSentence.includes("a job easily") || lowerSentence.includes("is a job easily")) {
-      const noun = match ? match[2] : "job";
-      const baseAdj = word.replace(/ily$/, "y").replace(/ly$/, "");
-      const article = /^[aeiou]/i.test(baseAdj) ? "an" : "a";
-
-      return {
-        original_sentence: trimmed,
-        corrected_sentence: `This is ${article} ${baseAdj} ${noun}.`,
-        suggested_native_sentence: fallbackNativeExample,
-        grammar_feedback: `❌ Nhầm lẫn từ loại (Trạng từ vs Tính từ): "${word}" là TRẠNG TỪ (Adverb), chỉ dùng để bổ nghĩa cho động từ hành động (ví dụ: "I do this ${noun} ${word}"). Bạn không thể dùng trạng từ đứng sau danh từ "${noun}". Để bổ nghĩa cho danh từ "${noun}", bạn phải dùng TÍNH TỪ "${baseAdj}" đứng trước danh từ (ví dụ: "This is ${article} ${baseAdj} ${noun}").`,
-        vocabulary_usage_feedback: `Dùng sai vị trí từ loại của "${word}". Cần phân biệt rõ Adjective và Adverb.`,
-        naturalness_feedback: `Người bản xứ sẽ nói "This is ${article} ${baseAdj} ${noun}" hoặc "I do this ${noun} ${word}".`,
-        vietnamese_translation: example_vi || `Đây là một ${noun} ${meaning_vi}.`,
-        vietnamese_explanation: `Thỏ sửa bài chi tiết:
-Trong tiếng Anh:
-- Tính từ (Adjective) đứng trước Danh từ: ${article} ${baseAdj} ${noun} (${noun} dễ dàng).
-- Trạng từ (Adverb) đứng sau Động từ: do the ${noun} ${word} (làm một cách dễ dàng).
-Tuyệt đối không ghép "${noun} ${word}" bạn nhé!`,
-        target_word_used_correctly: false,
-        suggested_next_step: `Chuyển thành: "This is ${article} ${baseAdj} ${noun}." hoặc "I can do this ${noun} ${word}."`,
-        score: 42,
-      };
-    }
-
-    // Check if adverb follows linking verb directly at end: "This job is easily", "English is easily"
-    const linkingVerbAdverbEnd = /\b(is|am|are|was|were)\s+([a-z]+ly)[\s.]*$/i;
-    const matchLinking = trimmed.match(linkingVerbAdverbEnd);
-    if (matchLinking) {
-      const baseAdj = word.replace(/ily$/, "y").replace(/ly$/, "");
-      const fixed = trimmed.replace(new RegExp(`\\b${word}\\b`, "i"), baseAdj).replace(/[.]*$/, ".");
-      return {
-        original_sentence: trimmed,
-        corrected_sentence: fixed,
-        suggested_native_sentence: fallbackNativeExample,
-        grammar_feedback: `❌ Dùng sai trạng từ sau động từ to-be: Sau động từ to-be (is/am/are/was/were), bạn cần dùng TÍNH TỪ (Adjective) "${baseAdj}" để miêu tả đặc tính của chủ ngữ, không dùng TRẠNG TỪ (Adverb) "${word}".`,
-        vocabulary_usage_feedback: `Cần đổi trạng từ "${word}" thành tính từ "${baseAdj}".`,
-        naturalness_feedback: `Người bản xứ nói: "${fixed}"`,
-        vietnamese_translation: example_vi || `... ${meaning_vi}`,
-        vietnamese_explanation: `Thỏ sửa bài:
-Cấu trúc vị ngữ miêu tả: S + to-be + Adjective.
-Ví dụ: "${fixed}" (Đúng) thay vì dùng "${word}" (Sai).`,
-        target_word_used_correctly: false,
-        suggested_next_step: `Đổi trạng từ thành tính từ "${baseAdj}": "${fixed}"`,
-        score: 45,
-      };
-    }
+  // 4. Calculate score & feedback based on repair results
+  if (grammarIssues.length === 0) {
+    return {
+      original_sentence: trimmed,
+      corrected_sentence: repairedSentence,
+      suggested_native_sentence: fallbackNativeExample,
+      grammar_feedback: "✅ Ngữ pháp chính xác! Câu có đầy đủ chủ ngữ, vị ngữ, sử dụng từ đúng thì và đúng ngữ cảnh.",
+      vocabulary_usage_feedback: `Sử dụng từ "${word}" chính xác và tự nhiên.`,
+      naturalness_feedback: `Câu của bạn rất tốt! Thỏ gợi ý thêm một cách diễn đạt mẫu: "${fallbackNativeExample}".`,
+      vietnamese_translation: example_vi || "",
+      vietnamese_explanation: `Thỏ khen: Rất tốt! Bạn đã áp dụng thành công từ "${word}" vào một câu tiếng Anh hoàn chỉnh và chuẩn ngữ pháp.`,
+      target_word_used_correctly: true,
+      suggested_next_step: `Đọc to câu của bạn: "${repairedSentence}"`,
+      score: 95,
+    };
   }
 
-  // 6. Check for Finite Verbs (Missing Verb / Fragment check)
-  const BE_VERBS = new Set(["is", "am", "are", "was", "were", "be", "been", "being", "'s", "'re", "'m"]);
-  const AUX_VERBS = new Set(["do", "does", "did", "have", "has", "had", "can", "could", "will", "would", "shall", "should", "may", "might", "must"]);
-  const COMMON_VERBS = new Set([
-    "run", "runs", "ran", "running", "go", "goes", "went", "going", "walk", "walks", "walked",
-    "see", "sees", "saw", "look", "looks", "looked", "make", "makes", "made", "get", "gets", "got",
-    "move", "moves", "moved", "learn", "learns", "learned", "eat", "eats", "ate", "play", "plays", "played",
-    "work", "works", "worked", "take", "takes", "took", "give", "gives", "gave", "speak", "speaks", "spoke",
-    "read", "reads", "write", "writes", "wrote", "feel", "feels", "felt", "become", "becomes", "became",
-    "stay", "stays", "stayed", "seem", "seems", "seemed", "appear", "appears", "jump", "jumps", "jumped",
-    "drive", "drives", "drove", "help", "helps", "helped", "need", "needs", "needed", "want", "wants", "wanted",
-    "like", "likes", "liked", "love", "loves", "loved", "live", "lives", "lived", "think", "thinks", "thought",
-    "find", "finds", "found", "tell", "tells", "told", "ask", "asks", "asked", "try", "tries", "tried",
-    "call", "calls", "called", "keep", "keeps", "kept", "let", "lets", "begin", "begins", "began",
-    "show", "shows", "showed", "hear", "hears", "heard", "stop", "stops", "stopped", "start", "starts", "started",
-    "act", "acts", "acted", "acting"
-  ]);
-
-  const hasVerb = tokens.some(
-    (t) =>
-      BE_VERBS.has(t) ||
-      AUX_VERBS.has(t) ||
-      COMMON_VERBS.has(t) ||
-      t.endsWith("ed") ||
-      t.endsWith("ing") ||
-      t.endsWith("izes") ||
-      t.endsWith("ises")
+  // There are grammar / typo errors
+  const score = Math.max(
+    30,
+    hasWord ? 85 - grammarIssues.length * 12 : 45 - grammarIssues.length * 10
   );
 
-  if (!hasVerb) {
-    let corrected = example_en || "";
-    if (!corrected) {
-      if (lowerSentence.startsWith("a ") || lowerSentence.startsWith("the ") || lowerSentence.startsWith("this ")) {
-        const parts = trimmed.split(/\s+/);
-        if (parts.length >= 3) {
-          corrected = `The ${parts[1]} is ${parts.slice(2).join(" ")}.`;
-        } else {
-          corrected = `${trimmed} is very good.`;
-        }
-      } else {
-        corrected = `It is ${trimmed}.`;
-      }
-      corrected = corrected.charAt(0).toUpperCase() + corrected.slice(1);
-      if (!corrected.endsWith(".")) corrected += ".";
-    }
-
-    return {
-      original_sentence: trimmed,
-      corrected_sentence: corrected,
-      suggested_native_sentence: fallbackNativeExample,
-      grammar_feedback: `❌ Lỗi thiếu vị ngữ (Sentence Fragment): Câu "${trimmed}" của bạn thiếu động từ chính. Trong tiếng Anh, "${word}" không thể đứng làm vị ngữ nếu thiếu động từ to-be (is/are) hoặc động từ hành động.`,
-      vocabulary_usage_feedback: `Từ "${word}" đã được đưa vào câu nhưng chưa liên kết đúng ngữ pháp với chủ ngữ.`,
-      naturalness_feedback: `Người bản xứ không nói "${trimmed}". Cần nói: "${corrected}"`,
-      vietnamese_translation: example_vi || `"${trimmed}" (nghĩa thô, chưa hoàn chỉnh ngữ pháp)`,
-      vietnamese_explanation: `Thỏ giải thích chi tiết:
-Trong tiếng Việt ta có thể nói vắn tắt, nhưng tiếng Anh bắt buộc phải tuân thủ cấu trúc S + V + O hoặc S + V + Adj (Chủ ngữ + Động từ + Thành phần phụ).
-👉 Câu hoàn chỉnh chuẩn từ Thỏ: "${corrected}"`,
-      target_word_used_correctly: false,
-      suggested_next_step: `Xem câu mẫu chuẩn và sửa lại: "${corrected}"`,
-      score: 40,
-    };
-  }
-
-  // 7. Check for common subject-verb agreement errors (e.g. "he run", "she go")
-  const thirdPersonSingular = new Set(["he", "she", "it"]);
-  let hasSVAError = false;
-  for (let i = 0; i < tokens.length - 1; i++) {
-    if (thirdPersonSingular.has(tokens[i])) {
-      const nextWord = tokens[i + 1];
-      if (
-        nextWord === "run" ||
-        nextWord === "go" ||
-        nextWord === "walk" ||
-        nextWord === "like" ||
-        nextWord === "love" ||
-        nextWord === "want" ||
-        nextWord === "need"
-      ) {
-        hasSVAError = true;
-      }
-    }
-  }
-
-  if (hasSVAError) {
-    const fixed = trimmed
-      .replace(/\bhe run\b/i, "he runs")
-      .replace(/\bshe run\b/i, "she runs")
-      .replace(/\bit run\b/i, "it runs")
-      .replace(/\bhe go\b/i, "he goes")
-      .replace(/\bshe go\b/i, "she goes");
-
-    return {
-      original_sentence: trimmed,
-      corrected_sentence: fixed,
-      suggested_native_sentence: fallbackNativeExample,
-      grammar_feedback: "❌ Lỗi hòa hợp Chủ ngữ - Động từ: Chủ ngữ số ít (he/she/it) ở thì hiện tại đơn cần thêm 's' hoặc 'es' vào sau động từ.",
-      vocabulary_usage_feedback: `Từ "${word}" được sử dụng đúng ngữ cảnh.`,
-      naturalness_feedback: "Cần chú ý chia động từ theo đúng ngôi chủ ngữ.",
-      vietnamese_translation: "",
-      vietnamese_explanation: `Thỏ lưu ý: Khi chủ ngữ là ngôi thứ 3 số ít (He/She/It), động từ đi sau phải chia (ví dụ: He runs thay vì He run).`,
-      target_word_used_correctly: false,
-      suggested_next_step: `Sửa động từ cho đúng ngôi số ít: "${fixed}"`,
-      score: 60,
-    };
-  }
-
-  // 8. For a good sentence: Provide student's polished sentence and a richer native suggestion!
-  let teacherSuggestion = "";
-  if (example_en && example_en.trim().toLowerCase() !== lowerSentence) {
-    teacherSuggestion = example_en.trim();
-  } else {
-    teacherSuggestion = generateRichNativeSentence(word, part_of_speech);
-  }
-  if (!/[.!?]$/.test(teacherSuggestion)) {
-    teacherSuggestion += ".";
-  }
-
-  const polishedUserSentence =
-    trimmed.charAt(0).toUpperCase() + trimmed.slice(1) + (/[.!?]$/.test(trimmed) ? "" : ".");
+  const formattedIssues = grammarIssues
+    .map((issue, idx) => `${idx + 1}. ${issue}`)
+    .join("\n");
 
   return {
     original_sentence: trimmed,
-    corrected_sentence: polishedUserSentence,
-    suggested_native_sentence: teacherSuggestion,
-    grammar_feedback: "✅ Ngữ pháp chính xác! Câu có đầy đủ chủ ngữ và vị ngữ, từ vựng được sử dụng đúng cấu trúc.",
-    vocabulary_usage_feedback: `Sử dụng từ "${word}" chính xác và phù hợp với ngữ cảnh.`,
-    naturalness_feedback: `Câu của bạn rất tốt! Thỏ gợi ý thêm một cách diễn đạt chuẩn bản xứ phong phú hơn: "${teacherSuggestion}".`,
+    corrected_sentence: repairedSentence,
+    suggested_native_sentence: fallbackNativeExample,
+    grammar_feedback: formattedIssues,
+    vocabulary_usage_feedback: hasWord
+      ? (detectedTypo ? `Đã sửa lỗi gõ nhầm thành từ mục tiêu "${word}".` : `Từ "${word}" đã được đưa vào câu.`)
+      : `Thiếu từ vựng bắt buộc "${word}".`,
+    naturalness_feedback: `Câu của bạn đã được Thỏ sửa lại cho chuẩn ngữ pháp: "${repairedSentence}".`,
     vietnamese_translation: example_vi || "",
-    vietnamese_explanation: `Thỏ khen: Rất tốt! Bạn đã áp dụng thành công từ "${word}" vào một câu tiếng Anh hoàn chỉnh và chuẩn ngữ pháp.`,
-    target_word_used_correctly: true,
-    suggested_next_step: `Đọc to câu gợi ý chuẩn bản xứ từ Thỏ: "${teacherSuggestion}"`,
-    score: 95,
+    vietnamese_explanation: `Thỏ nhận xét: Câu của bạn đã thể hiện đúng ý định nhưng có ${grammarIssues.length} điểm cần sửa (chính tả, thì động từ hoặc viết hoa). Thỏ đã sửa lại toàn bộ câu cho bạn ở trên, bạn hãy đối chiếu nhé!`,
+    target_word_used_correctly: false,
+    suggested_next_step: `Ghi nhớ câu đã sửa: "${repairedSentence}"`,
+    score,
   };
 }
 

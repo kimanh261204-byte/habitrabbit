@@ -1052,6 +1052,18 @@ export function PracticeSession({ items, onComplete }: PracticeEngineProps) {
                   <span className="font-semibold underline decoration-dashed">{answer}</span>
                 </p>
 
+                {/* For sentence writing, show repaired sentence directly in the banner when incorrect */}
+                {questionType === "sentence_writing" && !result?.correct && result?.feedback?.corrected_sentence && (
+                  <div className="pt-2 mt-2 border-t border-red-200/70 space-y-1">
+                    <p className="text-xs font-bold text-red-900 flex items-center gap-1.5">
+                      <span>✏️ Câu sửa lại cho đúng từ câu của bạn:</span>
+                    </p>
+                    <p className="text-sm font-extrabold text-emerald-950 bg-white/90 p-2.5 rounded-xl border border-red-200 shadow-2xs italic">
+                      "{result.feedback.corrected_sentence}"
+                    </p>
+                  </div>
+                )}
+
                 {/* For non sentence writing, show expected answer if wrong */}
                 {questionType !== "sentence_writing" && !result?.correct && (
                   <div className="pt-1 space-y-1 text-xs">
