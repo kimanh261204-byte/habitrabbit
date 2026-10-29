@@ -26,7 +26,9 @@ export type QuestionType =
   | "vietnamese_recall"
   | "fill_blank"
   | "sentence_writing"
-  | "multiple_choice";
+  | "multiple_choice"
+  | "sentence_scramble"
+  | "listening_catch";
 
 export type SelfRating = "again" | "hard" | "good" | "easy";
 
@@ -233,6 +235,7 @@ export interface AIEnrichmentResult {
 export interface AIGradingResult {
   original_sentence: string;
   corrected_sentence: string;
+  suggested_native_sentence?: string;
   grammar_feedback: string;
   vocabulary_usage_feedback: string;
   naturalness_feedback: string;

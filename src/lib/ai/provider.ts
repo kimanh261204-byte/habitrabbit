@@ -193,6 +193,7 @@ export function evaluateEnglishSentenceLocally(
     return {
       original_sentence: trimmed,
       corrected_sentence: fallbackNativeExample,
+      suggested_native_sentence: fallbackNativeExample,
       grammar_feedback: `❌ Bạn chưa sử dụng đúng từ vựng mục tiêu "${word}" (${meaning_vi}) trong câu trả lời.${relatedNote}`,
       vocabulary_usage_feedback: `Thiếu từ vựng bắt buộc: "${word}".`,
       naturalness_feedback: "Câu chưa đáp ứng yêu cầu của bài tập đặt câu.",
@@ -210,7 +211,8 @@ export function evaluateEnglishSentenceLocally(
     const corrected = example_en || generateRichNativeSentence(word, part_of_speech);
     return {
       original_sentence: trimmed,
-      corrected_sentence: corrected,
+      corrected_sentence: isSingleWord ? `This is an example of ${trimmed}.` : `It is ${trimmed}.`,
+      suggested_native_sentence: fallbackNativeExample,
       grammar_feedback: isSingleWord
         ? `Lỗi câu cụt: Bạn chỉ mới viết một từ đơn lẻ "${trimmed}", chưa phải là một câu hoàn chỉnh.`
         : `Lỗi cụm từ chưa hoàn chỉnh: "${trimmed}" chỉ là một cụm từ, thiếu cả chủ ngữ và vị ngữ.`,
@@ -234,10 +236,11 @@ export function evaluateEnglishSentenceLocally(
     const noun = tokens[0];
     const article = /^[aeiou]/i.test(noun) ? "An" : "A";
     const fixed = `${article} ${trimmed.charAt(0).toLowerCase() + trimmed.slice(1)}`;
-    const corrected = example_en || `${fixed}.`;
+    const corrected = `${fixed}${/[.!?]$/.test(fixed) ? "" : "."}`;
     return {
       original_sentence: trimmed,
       corrected_sentence: corrected,
+      suggested_native_sentence: fallbackNativeExample,
       grammar_feedback: `❌ Thiếu mạo từ (Missing Article): Danh từ đếm được số ít "${noun}" không thể đứng đơn độc làm chủ ngữ. Bạn cần thêm mạo từ xác định hoặc không xác định trước danh từ: "${article} ${noun}..." hoặc "The ${noun}...".`,
       vocabulary_usage_feedback: `Cần bổ sung mạo từ trước danh từ "${noun}".`,
       naturalness_feedback: `Người bản xứ không nói "${trimmed}". Cần nói: "${article} ${noun}..." hoặc "The ${noun}...".`,
@@ -275,6 +278,7 @@ export function evaluateEnglishSentenceLocally(
       return {
         original_sentence: trimmed,
         corrected_sentence: betterExample,
+        suggested_native_sentence: fallbackNativeExample,
         grammar_feedback: `❌ Lỗi phi thực tế về ngữ nghĩa (Semantic Inconsistency): "${hasInanimateSubject}" (công trình/vật thể mặt đất) không thể tự thực hiện hành động "${word}" (bay) được. Câu của bạn đúng cấu trúc ngữ pháp nhưng hoàn toàn vô nghĩa và vô lý trong thực tế.`,
         vocabulary_usage_feedback: `Từ "${word}" cần đi với chủ ngữ có khả năng bay như máy bay (airplane/plane), chim chóc (bird), hoặc phi công (pilot).`,
         naturalness_feedback: `Người bản xứ không bao giờ nói "${trimmed}". Cần nói: "${betterExample}"`,
@@ -303,6 +307,7 @@ Một câu tiếng Anh hay không chỉ cần đúng ngữ pháp mà phải CÓ 
     return {
       original_sentence: trimmed,
       corrected_sentence: betterExample,
+      suggested_native_sentence: fallbackNativeExample,
       grammar_feedback: `❌ Lỗi phi lý về ngữ nghĩa: "${hasInanimateSubject}" là vật vô tri vô giác, không thể tự thực hiện hành vi sinh học "${hasBioAction}" được.`,
       vocabulary_usage_feedback: `Từ "${word}" cần đi với chủ ngữ là con người hoặc sinh vật sống.`,
       naturalness_feedback: `Người bản xứ không bao giờ dùng câu này vì nó trái ngược với thực tế khách quan.`,
@@ -334,6 +339,7 @@ Một câu tiếng Anh hay không chỉ cần đúng ngữ pháp mà phải CÓ 
       return {
         original_sentence: trimmed,
         corrected_sentence: `This is ${article} ${baseAdj} ${noun}.`,
+        suggested_native_sentence: fallbackNativeExample,
         grammar_feedback: `❌ Nhầm lẫn từ loại (Trạng từ vs Tính từ): "${word}" là TRẠNG TỪ (Adverb), chỉ dùng để bổ nghĩa cho động từ hành động (ví dụ: "I do this ${noun} ${word}"). Bạn không thể dùng trạng từ đứng sau danh từ "${noun}". Để bổ nghĩa cho danh từ "${noun}", bạn phải dùng TÍNH TỪ "${baseAdj}" đứng trước danh từ (ví dụ: "This is ${article} ${baseAdj} ${noun}").`,
         vocabulary_usage_feedback: `Dùng sai vị trí từ loại của "${word}". Cần phân biệt rõ Adjective và Adverb.`,
         naturalness_feedback: `Người bản xứ sẽ nói "This is ${article} ${baseAdj} ${noun}" hoặc "I do this ${noun} ${word}".`,
@@ -358,6 +364,7 @@ Tuyệt đối không ghép "${noun} ${word}" bạn nhé!`,
       return {
         original_sentence: trimmed,
         corrected_sentence: fixed,
+        suggested_native_sentence: fallbackNativeExample,
         grammar_feedback: `❌ Dùng sai trạng từ sau động từ to-be: Sau động từ to-be (is/am/are/was/were), bạn cần dùng TÍNH TỪ (Adjective) "${baseAdj}" để miêu tả đặc tính của chủ ngữ, không dùng TRẠNG TỪ (Adverb) "${word}".`,
         vocabulary_usage_feedback: `Cần đổi trạng từ "${word}" thành tính từ "${baseAdj}".`,
         naturalness_feedback: `Người bản xứ nói: "${fixed}"`,
@@ -421,6 +428,7 @@ Ví dụ: "${fixed}" (Đúng) thay vì dùng "${word}" (Sai).`,
     return {
       original_sentence: trimmed,
       corrected_sentence: corrected,
+      suggested_native_sentence: fallbackNativeExample,
       grammar_feedback: `❌ Lỗi thiếu vị ngữ (Sentence Fragment): Câu "${trimmed}" của bạn thiếu động từ chính. Trong tiếng Anh, "${word}" không thể đứng làm vị ngữ nếu thiếu động từ to-be (is/are) hoặc động từ hành động.`,
       vocabulary_usage_feedback: `Từ "${word}" đã được đưa vào câu nhưng chưa liên kết đúng ngữ pháp với chủ ngữ.`,
       naturalness_feedback: `Người bản xứ không nói "${trimmed}". Cần nói: "${corrected}"`,
@@ -465,6 +473,7 @@ Trong tiếng Việt ta có thể nói vắn tắt, nhưng tiếng Anh bắt bu�
     return {
       original_sentence: trimmed,
       corrected_sentence: fixed,
+      suggested_native_sentence: fallbackNativeExample,
       grammar_feedback: "❌ Lỗi hòa hợp Chủ ngữ - Động từ: Chủ ngữ số ít (he/she/it) ở thì hiện tại đơn cần thêm 's' hoặc 'es' vào sau động từ.",
       vocabulary_usage_feedback: `Từ "${word}" được sử dụng đúng ngữ cảnh.`,
       naturalness_feedback: "Cần chú ý chia động từ theo đúng ngôi chủ ngữ.",
@@ -476,7 +485,7 @@ Trong tiếng Việt ta có thể nói vắn tắt, nhưng tiếng Anh bắt bu�
     };
   }
 
-  // 8. For a good sentence: ALWAYS provide a richer native suggestion! NEVER echo the student's input!
+  // 8. For a good sentence: Provide student's polished sentence and a richer native suggestion!
   let teacherSuggestion = "";
   if (example_en && example_en.trim().toLowerCase() !== lowerSentence) {
     teacherSuggestion = example_en.trim();
@@ -487,17 +496,21 @@ Trong tiếng Việt ta có thể nói vắn tắt, nhưng tiếng Anh bắt bu�
     teacherSuggestion += ".";
   }
 
+  const polishedUserSentence =
+    trimmed.charAt(0).toUpperCase() + trimmed.slice(1) + (/[.!?]$/.test(trimmed) ? "" : ".");
+
   return {
     original_sentence: trimmed,
-    corrected_sentence: teacherSuggestion,
-    grammar_feedback: "✅ Ngữ pháp chính xác! Câu có đầy đủ chủ ngữ và vị ngữ, từ vựng được sử dụng đúng vị trí.",
+    corrected_sentence: polishedUserSentence,
+    suggested_native_sentence: teacherSuggestion,
+    grammar_feedback: "✅ Ngữ pháp chính xác! Câu có đầy đủ chủ ngữ và vị ngữ, từ vựng được sử dụng đúng cấu trúc.",
     vocabulary_usage_feedback: `Sử dụng từ "${word}" chính xác và phù hợp với ngữ cảnh.`,
     naturalness_feedback: `Câu của bạn rất tốt! Thỏ gợi ý thêm một cách diễn đạt chuẩn bản xứ phong phú hơn: "${teacherSuggestion}".`,
     vietnamese_translation: example_vi || "",
     vietnamese_explanation: `Thỏ khen: Rất tốt! Bạn đã áp dụng thành công từ "${word}" vào một câu tiếng Anh hoàn chỉnh và chuẩn ngữ pháp.`,
     target_word_used_correctly: true,
-    suggested_next_step: `Đọc to câu gợi ý chuẩn bản xứ: "${teacherSuggestion}"`,
-    score: 92,
+    suggested_next_step: `Đọc to câu gợi ý chuẩn bản xứ từ Thỏ: "${teacherSuggestion}"`,
+    score: 95,
   };
 }
 
@@ -540,45 +553,46 @@ Student's sentence: "${trimmed}"
 
 MANDATORY PERSONA & EVALUATION RULES:
 1. PERSONA:
-   - In all Vietnamese explanations, you MUST ALWAYS refer to yourself as "Thỏ" (NEVER use "thầy", "thầy giáo", or "tôi"). Example: "Thỏ nhận xét: ...", "Thỏ nhắc bạn: ...", "Thỏ khen: ...".
+   - In all Vietnamese explanations, you MUST ALWAYS refer to yourself as "Thỏ" (mascot companion). Never use "thầy", "tôi", or "AI". Example: "Thỏ nhận xét: ...", "Thỏ nhắc bạn: ...".
 
-2. EXACT TARGET WORD PRESENCE:
+2. EXACT TARGET WORD PRESENCE & USAGE:
    - The student MUST use "${word}" or its exact legitimate grammatical inflections (e.g. for "act", only "act", "acts", "acted", "acting").
-   - DO NOT accept unrelated words or derivatives containing "${word}" as a substring (e.g. for "act", "actor", "action", "exact", "sact" are NOT acceptable!).
-   - If target word is missing or only substring:
-     * score: 10 - 25
+   - DO NOT accept unrelated derivatives containing "${word}" as a substring (e.g. for "act", "actor" or "sact" are unacceptable).
+   - If target word is missing or misuse:
+     * score: 15 - 35
      * target_word_used_correctly: false
      * Clearly state in Vietnamese: "Bạn chưa sử dụng đúng từ vựng mục tiêu '${word}'..."
 
-3. SEMANTIC LOGIC & REAL-WORLD REALISM (TÍNH THỰC TẾ & Ý NGHĨA):
-   - The sentence MUST make real-world logical sense.
-   - If the student writes nonsensical or absurd statements (e.g. "the airport is flying", "the table is sleeping", "cars are eating"), REJECT IT IMMEDIATELY:
-     * score: 20 - 40
-     * target_word_used_correctly: false
-     * Clearly explain the semantic absurdity in Vietnamese: "Thỏ nhận xét: Câu vô lý trong thực tế..."
-     * In "corrected_sentence", provide a realistic, meaningful English sentence (e.g., "The airplane is flying in the sky.").
+3. SỬA TRỰC TIẾP CÂU CỦA HỌC VIÊN CHO ĐÚNG (corrected_sentence):
+   - CRITICAL REQUIREMENT: "corrected_sentence" MUST BE THE DIRECT CORRECTION OF THE STUDENT'S EXACT SENTENCE.
+   - Fix all grammatical mistakes, spelling, verb tenses, subject-verb agreement, articles (a/an/the), prepositions, word order, and punctuation.
+   - PRESERVE the student's original words, vocabulary, intent, and meaning as much as possible! DO NOT replace it with an unrelated canned sentence.
+   - If the student's sentence is already 100% correct, keep the student's sentence with proper capitalization and ending punctuation.
 
-4. PART OF SPEECH & GRAMMAR ACCURACY:
-   - Check if "${word}" is used in its correct grammatical role (e.g. "this is a job easily" misuses adverb "easily" for noun "job").
-   - Check Articles (e.g. singular countable nouns like "actor" cannot stand alone without "a/an/the"), Subject-Verb Agreement, Verb Tense, Sentence Completeness.
-   - If ungrammatical or wrong part of speech:
-     * score: 20 - 55
-     * target_word_used_correctly: false
-     * Clearly explain the grammatical mistake in Vietnamese.
+4. CÂU GỢI Ý MẪU THAM KHẢO TỪ THỎ (suggested_native_sentence):
+   - Provide an additional, high-quality, natural native English example sentence using "${word}" (e.g. from the curriculum example "${example_en || ""}" or a native sentence).
+   - This gives the student an extra model sentence to expand their vocabulary and expression.
 
-5. "corrected_sentence" (CÂU GỢI Ý TỰ NHIÊN HƠN):
-   - NEVER repeat the student's broken or awkward sentence back to them!
-   - Provide a natural, fluent, native-sounding sentence that expresses a sensible thought using "${word}".
+5. PHÂN TÍCH CHI TIẾT CHỖ SAI NGỮ PHÁP (grammar_feedback):
+   - Enumerate and explain each specific grammar error the student made in clear Vietnamese bullets:
+     * Lỗi 1: ...
+     * Lỗi 2: ...
+   - If no errors, write: "✅ Ngữ pháp câu chính xác! Đầy đủ thành phần chủ ngữ, vị ngữ và dùng từ đúng ngữ cảnh."
 
-6. VIETNAMESE FEEDBACK:
-   - "grammar_feedback": Detail the specific grammar or word-order errors.
-   - "vietnamese_explanation": Friendly, constructive advice from Thỏ (refer to yourself as "Thỏ").
-   - "suggested_next_step": Specific next action in Vietnamese.
-   - "target_word_used_correctly": boolean (true ONLY IF sentence is grammatically sound, semantically logical, and word is used properly).
+6. LỜI KHUYÊN & HƯỚNG DẪN (vietnamese_explanation):
+   - Warm, friendly pedagogical advice from Thỏ explaining the grammar rules and encouragement.
+
+7. DỊCH NGHĨA TIẾNG VIỆT (vietnamese_translation):
+   - Accurate Vietnamese translation of the student's sentence (what they meant to express).
+
+8. SCORING & ACCURACY:
+   - "target_word_used_correctly": boolean (true ONLY IF sentence is grammatically correct, semantically logical, and target word is used properly).
+   - "score": number from 0 to 100 (90-100: flawless, 75-89: minor error, 50-74: notable grammar errors, <50: major errors or missing word).
 
 Return a JSON object with these EXACT keys:
 - original_sentence
 - corrected_sentence
+- suggested_native_sentence
 - grammar_feedback
 - vocabulary_usage_feedback
 - naturalness_feedback
@@ -595,7 +609,7 @@ Return ONLY valid JSON. No markdown fences.`;
       messages: [{ role: "user", content: prompt }],
       temperature: 0.3,
       response_format: { type: "json_object" },
-      max_tokens: 700,
+      max_tokens: 750,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -608,14 +622,17 @@ Return ONLY valid JSON. No markdown fences.`;
       parsed.target_word_used_correctly = false;
     }
 
-    // Ensure corrected_sentence is NEVER identical to the student's sentence
-    const lowerTrimmed = trimmed.toLowerCase();
-    const lowerCorrected = (parsed.corrected_sentence || "").trim().toLowerCase();
-    if (lowerCorrected === lowerTrimmed || lowerCorrected === (lowerTrimmed + ".")) {
-      parsed.corrected_sentence =
-        example_en && example_en.trim().toLowerCase() !== lowerTrimmed
+    // Ensure suggested_native_sentence is provided
+    if (!parsed.suggested_native_sentence) {
+      parsed.suggested_native_sentence =
+        example_en && example_en.trim().toLowerCase() !== trimmed.toLowerCase()
           ? example_en.trim()
           : generateRichNativeSentence(word, part_of_speech);
+    }
+
+    // Ensure corrected_sentence is provided
+    if (!parsed.corrected_sentence) {
+      parsed.corrected_sentence = trimmed;
     }
 
     await fillTranslationIfNeeded(parsed, trimmed, example_vi);

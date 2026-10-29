@@ -1,4 +1,4 @@
-﻿import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 interface CookieToSet {
@@ -14,6 +14,10 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      cookieOptions: {
+        maxAge: 365 * 24 * 60 * 60,
+        sameSite: "lax",
+      },
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -24,7 +28,11 @@ export async function updateSession(request: NextRequest) {
           );
           supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, {
+              ...options,
+              maxAge: options?.maxAge !== undefined ? options.maxAge : 365 * 24 * 60 * 60,
+              sameSite: "lax",
+            })
           );
         },
       },
@@ -41,16 +49,26 @@ export async function updateSession(request: NextRequest) {
     (p) => pathname === p || pathname.startsWith("/api/auth")
   );
 
+  // If not logged in and not public route -> redirect to /login
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    return NextResponse.redirect(url);
+    const redirectResponse = NextResponse.redirect(url);
+    supabaseResponse.cookies.getAll().forEach((c) => {
+      redirectResponse.cookies.set(c.name, c.value, c);
+    });
+    return redirectResponse;
   }
 
-  if (user && (pathname === "/login" || pathname === "/register")) {
+  // If already logged in and visiting /, /login, or /register -> automatically go to /dashboard
+  if (user && (pathname === "/login" || pathname === "/register" || pathname === "/")) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+    const redirectResponse = NextResponse.redirect(url);
+    supabaseResponse.cookies.getAll().forEach((c) => {
+      redirectResponse.cookies.set(c.name, c.value, c);
+    });
+    return redirectResponse;
   }
 
   return supabaseResponse;
